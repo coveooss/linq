@@ -1,0 +1,96 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="lib">
+      <UniqueIdentifier>{30F02BC0-FFD0-4C3E-9D5F-E71F9BF60B1B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\coveo">
+      <UniqueIdentifier>{516A002C-E8A4-4192-90B7-3701170B8CA4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests">
+      <UniqueIdentifier>{21A5B75E-3A79-401F-9CD0-9E7EF14209DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\coveo">
+      <UniqueIdentifier>{F5712516-650E-4285-922E-753670C70008}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\coveo\linq">
+      <UniqueIdentifier>{680E3832-1DF6-4A06-AC71-9A0CD470D2CF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\coveo\enumerable">
+      <UniqueIdentifier>{e886bb4c-bcf9-40e7-a01f-8792de7edcae}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\coveo\enumerable\detail">
+      <UniqueIdentifier>{968b3e79-1aca-4eac-8e0e-367d50db5e8f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\coveo\linq">
+      <UniqueIdentifier>{9be1fde6-a3c7-4637-89a9-b12dba975fd4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\coveo\linq\detail">
+      <UniqueIdentifier>{7263456d-ef93-481a-baf8-53b4579317aa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\coveo\enumerable">
+      <UniqueIdentifier>{6783813d-6a02-4247-95b5-2748196e13cd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\cl">
+      <UniqueIdentifier>{63cabdda-38be-4b46-939d-f3d27ae78c99}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\cl\optional">
+      <UniqueIdentifier>{c7404060-05ae-4193-9220-055804e22137}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\tests\coveo\test_framework.h">
+      <Filter>tests\coveo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tests\coveo\linq\all_tests.h">
+      <Filter>tests\coveo\linq</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\coveo\enumerable\enumerable.h">
+      <Filter>lib\coveo\enumerable</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\coveo\enumerable.h">
+      <Filter>lib\coveo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\coveo\enumerable\detail\enumerable_detail.h">
+      <Filter>lib\coveo\enumerable\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\coveo\linq.h">
+      <Filter>lib\coveo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\coveo\linq\linq.h">
+      <Filter>lib\coveo\linq</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\coveo\linq\detail\linq_detail.h">
+      <Filter>lib\coveo\linq\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tests\coveo\enumerable\enumerable_tests.h">
+      <Filter>tests\coveo\enumerable</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tests\coveo\linq\linq_tests.h">
+      <Filter>tests\coveo\linq</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\coveo\linq\exception.h">
+      <Filter>lib\coveo\linq</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\cl\optional.h">
+      <Filter>lib\cl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lib\cl\optional\optional.h">
+      <Filter>lib\cl\optional</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\tests\tests_main.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\coveo\linq\all_tests.cpp">
+      <Filter>tests\coveo\linq</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\coveo\enumerable\enumerable_tests.cpp">
+      <Filter>tests\coveo\enumerable</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\coveo\linq\linq_tests.cpp">
+      <Filter>tests\coveo\linq</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

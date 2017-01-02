@@ -9,15 +9,15 @@ matrix:
         packages:
         - g++-5
     env: COMPILER=g++-5
-  - compiler: clang
-    addons:
-      apt:
-        sources:
-        - ubuntu-toolchain-r-test
-        - llvm-toolchain-precise-3.8
-        packages:
-        - clang-3.8
-    env: COMPILER=clang++-3.8
+#  - compiler: clang
+#    addons:
+#      apt:
+#        sources:
+#        - ubuntu-toolchain-r-test
+#        - llvm-toolchain-precise-3.8
+#        packages:
+#        - clang-3.8
+#    env: COMPILER=clang++-3.8
 script:
 - $COMPILER --version
 - make CXX=$COMPILER

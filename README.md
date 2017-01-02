@@ -40,6 +40,5 @@ The library is header-only. Therefore, to add it to your project, simply copy th
 
 * Microsoft Visual Studio 2015 Update 3
 * GCC 5.4.1
-* Clang 3.8.1
 
 There is also a branch named `ubuntu-14-04` with code that has been downgraded a bit to compile on Ubuntu 14.04 (as its name implies).

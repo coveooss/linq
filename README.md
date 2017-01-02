@@ -1,4 +1,4 @@
-# `coveo::linq` [![GitHub license](https://img.shields.io/badge/license-Apache%202-blue.svg)](https://raw.githubusercontent.com/coveo/linq/master/LICENSE)
+# `coveo::linq` [![Build Status](https://travis-ci.org/coveo/linq.svg?branch=master)](https://travis-ci.org/coveo/linq) [![GitHub license](https://img.shields.io/badge/license-Apache%202-blue.svg)](https://raw.githubusercontent.com/coveo/linq/master/LICENSE)
 A C++ library implementing LINQ operators similar to .NET's, like `select`, `where`, etc.
 
 ## TL;DR

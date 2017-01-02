@@ -19,7 +19,8 @@ struct seq_element_traits
 {
     typedef T                               value_type;         // Type of values stored in sequence.
     typedef const value_type                const_value_type;   // Same as value_type, but const.
-    typedef std::remove_cv_t<value_type>    raw_value_type;     // Same as value_type, without const/volatile.
+    typedef typename std::remove_cv<value_type>::type
+                                            raw_value_type;     // Same as value_type, without const/volatile.
     
     typedef value_type*                     pointer;
     typedef value_type&                     reference;

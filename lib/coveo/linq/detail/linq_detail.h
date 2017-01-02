@@ -34,7 +34,7 @@ namespace detail {
 template<typename Seq>
 struct seq_traits : public coveo::detail::seq_element_traits<decltype(*std::begin(std::declval<Seq>()))>
 {
-    typedef std::decay_t<decltype(std::begin(std::declval<Seq>()))>     iterator_type;  // Type of iterator used by the sequence
+    typedef typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type iterator_type;  // Type of iterator used by the sequence
 };
 template<typename Seq> struct seq_traits<Seq&> : seq_traits<Seq> { };
 template<typename Seq> struct seq_traits<Seq&&> : seq_traits<Seq> { };
@@ -46,7 +46,7 @@ template<typename Pred>
 class proxy_cmp
 {
 private:
-    const std::decay_t<Pred>* ppred_;
+    const typename std::decay<Pred>::type* ppred_;
 
 public:
     explicit proxy_cmp(const Pred& pred)
@@ -73,7 +73,7 @@ public:
         : sel_(std::forward<Selector>(sel)) { }
 
     template<typename T>
-    decltype(auto) operator()(T&& element, std::size_t) {
+    auto operator()(T&& element, std::size_t) -> decltype(sel_(element)) {
         return sel_(element);
     }
 };
@@ -82,7 +82,7 @@ public:
 template<typename = void>
 struct identity {
     template<typename T>
-    auto operator()(T&& obj) const {
+    auto operator()(T&& obj) const -> decltype(std::forward<T>(obj)) {
         return std::forward<T>(obj);
     }
 };
@@ -92,9 +92,31 @@ struct identity {
 template<typename = void>
 struct pair_of {
     template<typename T, typename U>
-    auto operator()(T&& obj1, U&& obj2) const {
+    auto operator()(T&& obj1, U&& obj2) const -> std::pair<T, U> {
         return std::pair<T, U>(std::forward<T>(obj1), std::forward<U>(obj2));
     }
+};
+
+// Transparent implementations of less and greater, like those in C++14.
+template<typename = void>
+struct less {
+    template<typename T, typename U>
+    bool operator()(T&& obj1, U&& obj2) const {
+        return obj1 < obj2;
+    }
+};
+template<typename = void>
+struct greater {
+    template<typename T, typename U>
+    bool operator()(T&& obj1, U&& obj2) const {
+        return obj1 > obj2;
+    }
+};
+
+// Creates an object and stores it in a unique_ptr, like std::make_unique from C++14.
+template<typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args&&... args) {
+    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 };
 
 // Utility methods to throw LINQ-specific exceptions.
@@ -106,6 +128,129 @@ template<typename = void>
 [[noreturn]] void throw_linq_out_of_range() {
     throw out_of_range("out_of_range");
 }
+
+// Implementation of aggregate operator (version with aggregate function only).
+template<typename F>
+class aggregate_impl_1
+{
+private:
+    const F& agg_f_;    // Aggregate function.
+
+public:
+    explicit aggregate_impl_1(const F& agg_f)
+        : agg_f_(agg_f) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename std::decay<decltype(*std::begin(seq))>::type {
+        auto it = std::begin(seq);
+        auto end = std::end(seq);
+        if (it == end) {
+            throw_linq_empty_sequence();
+        }
+        auto aggregate(*it);
+        for (++it; it != end; ++it) {
+            aggregate = agg_f_(aggregate, *it);
+        }
+        return aggregate;
+    }
+};
+
+// Implementation of aggregate operator (version with aggregate function and initial value).
+template<typename Acc, typename F>
+class aggregate_impl_2
+{
+private:
+    const Acc& seed_;   // Initial aggregate value.
+    const F& agg_f_;    // Aggregate function.
+
+public:
+    aggregate_impl_2(const Acc& seed, const F& agg_f)
+        : seed_(seed), agg_f_(agg_f) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> Acc {
+        Acc aggregate(seed_);
+        for (auto&& element : seq) {
+            aggregate = agg_f_(aggregate, element);
+        }
+        return aggregate;
+    }
+};
+
+// Implementation of aggregate operator (version with result function).
+template<typename Acc, typename F, typename RF>
+class aggregate_impl_3 : public aggregate_impl_2<Acc, F>
+{
+private:
+    const RF& result_f_;    // Function to convert aggregate into final result.
+
+public:
+    aggregate_impl_3(const Acc& seed, const F& agg_f, const RF& result_f)
+        : aggregate_impl_2<Acc, F>(seed, agg_f), result_f_(result_f) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(result_f_(std::declval<Acc>())) {
+        return result_f_(aggregate_impl_2<Acc, F>::operator()(seq));
+    }
+};
+
+// Implementation of all operator.
+template<typename Pred>
+class all_impl
+{
+private:
+    const Pred& pred_;  // Predicate to satisfy.
+
+public:
+    explicit all_impl(const Pred& pred)
+        : pred_(pred) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> bool {
+        return std::all_of(std::begin(seq), std::end(seq), pred_);
+    }
+};
+
+// Implementation of any operator.
+template<typename = void>
+class any_impl
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> bool {
+        return std::begin(seq) != std::end(seq);
+    }
+};
+
+// Implementation of average operator.
+template<typename F>
+class average_impl
+{
+private:
+    const F& num_f_;    // Function to get numeric value for each element.
+
+public:
+    explicit average_impl(const F& num_f)
+        : num_f_(num_f) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq)
+        -> typename std::decay<decltype(num_f_(*std::begin(seq)))>::type
+    {
+        auto it = std::begin(seq);
+        auto end = std::end(seq);
+        if (it == end) {
+            throw_linq_empty_sequence();
+        }
+        auto total = num_f_(*it);
+        decltype(total) count = 1;
+        for (++it; it != end; ++it) {
+            total += num_f_(*it);
+            ++count;
+        }
+        return total / count;
+    }
+};
 
 // Implementation of concat operator.
 template<typename Seq2>
@@ -178,7 +323,9 @@ public:
               icur1_(spinfo_->first_begin()), icur2_(spinfo_->second_begin()) { }
 
         template<typename Op>
-        auto operator()(Op&) {
+        auto operator()(Op&)
+            -> decltype(spinfo_->get_next(icur1_, icur2_))
+        {
             return spinfo_->get_next(icur1_, icur2_);
         }
     };
@@ -214,6 +361,127 @@ public:
         applied_ = true;
 #endif
         return next_impl<Seq1>(std::forward<Seq1>(seq1), std::forward<Seq2>(seq2_));
+    }
+};
+
+// Implementation of contains operator (version with object only).
+template<typename T>
+class contains_impl_1
+{
+private:
+    const T& obj_;  // Object to look for.
+
+public:
+    explicit contains_impl_1(const T& obj)
+        : obj_(obj) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> bool {
+        bool found = false;
+        for (auto&& element : seq) {
+            if (element == obj_) {
+                found = true;
+                break;
+            }
+        }
+        return found;
+    }
+};
+
+// Implementation of contains operator (version with object and predicate).
+template<typename T, typename Pred>
+class contains_impl_2
+{
+private:
+    const T& obj_;      // Object to look for.
+    const Pred& pred_;  // Predicate used to compare objects.
+
+public:
+    contains_impl_2(const T& obj, const Pred& pred)
+        : obj_(obj), pred_(pred) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> bool {
+        bool found = false;
+        for (auto&& element : seq) {
+            if (pred_(element, obj_)) {
+                found = true;
+                break;
+            }
+        }
+        return found;
+    }
+};
+
+// Implementation of count operator (version without parameters).
+template<typename = void>
+class count_impl_0
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> std::size_t {
+        return static_cast<std::size_t>(std::distance(std::begin(seq), std::end(seq)));
+    }
+};
+
+// Implementation of count operator (version with predicate).
+template<typename Pred>
+class count_impl_1
+{
+private:
+    const Pred& pred_;  // Predicate to satisfy.
+
+public:
+    explicit count_impl_1(const Pred& pred)
+        : pred_(pred) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> std::size_t {
+        return static_cast<std::size_t>(std::count_if(std::begin(seq), std::end(seq), pred_));
+    }
+};
+
+// Implementation of default_if_empty operator (version without parameters).
+template<typename = void>
+class default_if_empty_impl_0
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq)
+        -> coveo::enumerable<typename seq_traits<Seq>::raw_value_type>
+    {
+        coveo::enumerable<typename seq_traits<Seq>::raw_value_type> e;
+        if (any_impl<>()(seq)) {
+            e = coveo::enumerate_container(seq);
+        } else {
+            e = coveo::enumerate_one(typename seq_traits<Seq>::raw_value_type());
+        }
+        return e;
+    }
+};
+
+// Implementation of default_if_empty operator (version with default value).
+template<typename T>
+class default_if_empty_impl_1
+{
+private:
+    const T& obj_;  // Object to use to create default value if empty.
+
+public:
+    explicit default_if_empty_impl_1(const T& obj)
+        : obj_(obj) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq)
+        -> coveo::enumerable<typename seq_traits<Seq>::raw_value_type>
+    {
+        coveo::enumerable<typename seq_traits<Seq>::raw_value_type> e;
+        if (any_impl<>()(seq)) {
+            e = coveo::enumerate_container(seq);
+        } else {
+            e = coveo::enumerate_one(typename seq_traits<Seq>::raw_value_type(obj_));
+        }
+        return e;
     }
 };
 
@@ -286,7 +554,9 @@ public:
               icur_(spinfo_->seq_begin()), seen_(spinfo_->init_seen_elements()) { }
 
         template<typename Op>
-        auto operator()(Op&) {
+        auto operator()(Op&)
+            -> decltype(spinfo_->get_next(icur_, seen_))
+        {
             return spinfo_->get_next(icur_, seen_);
         }
     };
@@ -323,6 +593,54 @@ public:
 #endif
         // #clp TODO optimize if sequence does not have duplicates already, like std::set?
         return next_impl<Seq>(std::forward<Seq>(seq), std::forward<Pred>(pred_));
+    }
+};
+
+// Implementation of element_at operator.
+template<typename = void>
+class element_at_impl
+{
+private:
+    std::size_t n_;     // Index of element to fetch.
+
+public:
+    explicit element_at_impl(std::size_t n)
+        : n_(n) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
+        // #clp TODO optimize for random-access iterators
+        auto icur = std::begin(seq);
+        auto iend = std::end(seq);
+        for (std::size_t i = 0; i < n_ && icur != iend; ++i, ++icur) {
+        }
+        if (icur == iend) {
+            throw_linq_out_of_range();
+        }
+        return *icur;
+    }
+};
+
+// Implementation of element_at_or_default operator.
+template<typename = void>
+class element_at_or_default_impl
+{
+private:
+    std::size_t n_;     // Index of element to fetch.
+
+public:
+    element_at_or_default_impl(std::size_t n)
+        : n_(n) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
+        // #clp TODO optimize for random-access iterators
+        auto icur = std::begin(seq);
+        auto iend = std::end(seq);
+        for (std::size_t i = 0; i < n_ && icur != iend; ++i, ++icur) {
+        }
+        return icur != iend ? *icur
+                            : typename seq_traits<Seq>::raw_value_type();
     }
 };
 
@@ -405,7 +723,9 @@ public:
               icur_(spfilter_->first_begin()) { }
 
         template<typename Op>
-        auto operator()(Op&) {
+        auto operator()(Op&)
+            -> decltype(spfilter_->get_next(icur_))
+        {
             return spfilter_->get_next(icur_);
         }
     };
@@ -448,7 +768,82 @@ public:
     }
 };
 
-// Implement of group_by operator
+// Implementation of first operator (version without parameters).
+template<typename = void>
+class first_impl_0
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
+        auto icur = std::begin(seq);
+        if (icur == std::end(seq)) {
+            throw_linq_empty_sequence();
+        }
+        return *icur;
+    }
+};
+
+// Implementation of first operator (version with predicate).
+template<typename Pred>
+class first_impl_1
+{
+private:
+    const Pred& pred_;  // Predicate to satisfy.
+
+public:
+    explicit first_impl_1(const Pred& pred)
+        : pred_(pred) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
+        auto icur = std::begin(seq);
+        auto iend = std::end(seq);
+        if (icur == iend) {
+            throw_linq_empty_sequence();
+        }
+        // #clp TODO what if sequence is sorted? Can we optimize?
+        auto ifound = std::find_if(icur, iend, pred_);
+        if (ifound == iend) {
+            throw_linq_out_of_range();
+        }
+        return *ifound;
+    }
+};
+
+// Implementation of first_or_default operator (version without parameters).
+template<typename = void>
+class first_or_default_impl_0
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
+        auto icur = std::begin(seq);
+        return icur != std::end(seq) ? *icur
+                                     : typename seq_traits<Seq>::raw_value_type();
+    }
+};
+
+// Implementation of first_or_default operator (version with predicate).
+template<typename Pred>
+class first_or_default_impl_1
+{
+private:
+    const Pred& pred_;  // Predicate to satisfy.
+
+public:
+    explicit first_or_default_impl_1(const Pred& pred)
+        : pred_(pred) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
+        auto iend = std::end(seq);
+        auto ifound = std::find_if(std::begin(seq), iend, pred_);
+        return ifound != iend ? *ifound
+                              : typename seq_traits<Seq>::raw_value_type();
+    }
+};
+
+// Implementation of group_by operator
 template<typename KeySelector,
          typename ValueSelector,
          typename ResultSelector,
@@ -466,18 +861,18 @@ public:
         typedef decltype(std::declval<ValueSelector>()(std::declval<typename seq_traits<Seq>::const_reference>()))  value;
 
         // Vector of values sharing a common key.
-        typedef std::vector<std::decay_t<value>>    value_v;
+        typedef std::vector<typename std::decay<value>::type>   value_v;
         typedef decltype(coveo::enumerate_container(std::declval<const value_v&>()))
-                                                    values;
+                                                                values;
 
         // Map that stores keys and their corresponding values.
-        typedef std::map<std::decay_t<key>, value_v, proxy_cmp<Pred>> values_by_key_m;
+        typedef std::map<typename std::decay<key>::type, value_v, proxy_cmp<Pred>> values_by_key_m;
 
         // Result returned by result selector.
         typedef decltype(std::declval<ResultSelector>()(std::declval<key>(), std::declval<values>())) result;
 
         // Vector of results returned by this next delegate.
-        typedef std::vector<std::decay_t<result>> result_v;
+        typedef std::vector<typename std::decay<result>::type> result_v;
 
     private:
         // Bean storing group information. Shared among delegates in a shared_ptr.
@@ -635,7 +1030,7 @@ public:
                                                         std::declval<inner_elements>()))        result;
 
         // Vector of results returned by this next delegate.
-        typedef std::vector<std::decay_t<result>> result_v;
+        typedef std::vector<typename std::decay<result>::type> result_v;
 
     private:
         // Bean storing groups information. Shared among delegates in a shared_ptr.
@@ -671,7 +1066,8 @@ public:
                 // Init results on first call.
                 if (!init_flag_) {
                     // Build map of groups of elements from inner sequence.
-                    std::map<std::decay_t<key>, inner_element_v, proxy_cmp<Pred>> keyed_inner_elems{proxy_cmp<Pred>(pred_)};
+                    typedef std::map<typename std::decay<key>::type, inner_element_v, proxy_cmp<Pred>> groups_m;
+                    groups_m keyed_inner_elems{proxy_cmp<Pred>(pred_)};
                     for (auto&& inner_elem : inner_seq_) {
                         keyed_inner_elems[inner_key_sel_(inner_elem)].emplace_back(inner_elem);
                     }
@@ -866,7 +1262,9 @@ public:
               icur_(spint_info_->first_begin()) { }
 
         template<typename Op>
-        auto operator()(Op&) {
+        auto operator()(Op&)
+            -> decltype(spint_info_->get_next(icur_))
+        {
             return spint_info_->get_next(icur_);
         }
     };
@@ -935,7 +1333,7 @@ public:
                                                         std::declval<typename seq_traits<InnerSeq>::const_reference>()))    result;
 
         // Vector of results returned by this next delegate.
-        typedef std::vector<std::decay_t<result>> result_v;
+        typedef std::vector<typename std::decay<result>::type> result_v;
 
     private:
         // Bean storing join information. Shared among delegates in a shared_ptr.
@@ -971,7 +1369,8 @@ public:
                 // Init results on first call.
                 if (!init_flag_) {
                     // Build map of groups of elements from inner sequence.
-                    std::map<std::decay_t<key>, inner_element_v, proxy_cmp<Pred>> keyed_inner_elems{proxy_cmp<Pred>(pred_)};
+                    typedef std::map<typename std::decay<key>::type, inner_element_v, proxy_cmp<Pred>> groups_m;
+                    groups_m keyed_inner_elems{proxy_cmp<Pred>(pred_)};
                     for (auto&& inner_elem : inner_seq_) {
                         keyed_inner_elems[inner_key_sel_(inner_elem)].emplace_back(inner_elem);
                     }
@@ -1084,14 +1483,15 @@ public:
 };
 
 // Implementation of last operator (version without argument)
+template<typename = void>
 class last_impl_0
 {
 private:
     // If we have bidi iterators, we can simply use rbegin
     template<typename Seq>
-    decltype(auto) impl(Seq&& seq, std::bidirectional_iterator_tag) {
-        auto ricur = std::rbegin(seq);
-        if (ricur == std::rend(seq)) {
+    auto impl(Seq&& seq, std::bidirectional_iterator_tag) -> decltype(*std::begin(seq)) {
+        auto ricur = seq.rbegin();
+        if (ricur == seq.rend()) {
             throw_linq_empty_sequence();
         }
         return *ricur;
@@ -1099,7 +1499,7 @@ private:
 
     // Otherwise we'll have to be creative
     template<typename Seq>
-    decltype(auto) impl(Seq&& seq, std::forward_iterator_tag) {
+    auto impl(Seq&& seq, std::forward_iterator_tag) -> decltype(*std::begin(seq)) {
         auto icur = std::begin(seq);
         auto iend = std::end(seq);
         if (icur == iend) {
@@ -1115,7 +1515,7 @@ private:
 
 public:
     template<typename Seq>
-    decltype(auto) operator()(Seq&& seq) {
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
         return impl(std::forward<Seq>(seq),
             typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
     }
@@ -1131,9 +1531,9 @@ private:
 private:
     // If we have bidi iterators, we can simply use rbegin
     template<typename Seq>
-    decltype(auto) impl(Seq&& seq, std::bidirectional_iterator_tag) {
-        auto ricur = std::rbegin(seq);
-        auto riend = std::rend(seq);
+    auto impl(Seq&& seq, std::bidirectional_iterator_tag) -> decltype(*std::begin(seq)) {
+        auto ricur = seq.rbegin();
+        auto riend = seq.rend();
         if (ricur == riend) {
             throw_linq_empty_sequence();
         }
@@ -1147,7 +1547,7 @@ private:
 
     // Otherwise we'll have to be creative
     template<typename Seq>
-    decltype(auto) impl(Seq&& seq, std::forward_iterator_tag) {
+    auto impl(Seq&& seq, std::forward_iterator_tag) -> decltype(*std::begin(seq)) {
         auto icur = std::begin(seq);
         auto iend = std::end(seq);
         if (icur == iend) {
@@ -1171,21 +1571,22 @@ public:
         : pred_(pred) { }
 
     template<typename Seq>
-    decltype(auto) operator()(Seq&& seq) {
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
         return impl(std::forward<Seq>(seq),
             typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
     }
 };
 
 // Implementation of last_or_default operator (version without argument)
+template<typename = void>
 class last_or_default_impl_0
 {
 private:
     // If we have bidi iterators, we can simply use rbegin
     template<typename Seq>
     auto impl(Seq&& seq, std::bidirectional_iterator_tag) -> typename seq_traits<Seq>::raw_value_type {
-        auto ricur = std::rbegin(seq);
-        return ricur != std::rend(seq) ? *ricur : typename seq_traits<Seq>::raw_value_type();
+        auto ricur = seq.rbegin();
+        return ricur != seq.rend() ? *ricur : typename seq_traits<Seq>::raw_value_type();
     }
 
     // Otherwise we'll have to be creative
@@ -1220,8 +1621,8 @@ private:
     // If we have bidi iterators, we can simply use rbegin
     template<typename Seq>
     auto impl(Seq&& seq, std::bidirectional_iterator_tag) -> typename seq_traits<Seq>::raw_value_type {
-        auto riend = std::rend(seq);
-        auto rifound = std::find_if(std::rbegin(seq), riend, pred_);
+        auto riend = seq.rend();
+        auto rifound = std::find_if(seq.rbegin(), riend, pred_);
         return rifound != riend ? *rifound : typename seq_traits<Seq>::raw_value_type();
     }
 
@@ -1251,6 +1652,90 @@ public:
     }
 };
 
+// Implementation of max operator (version without parameters).
+template<typename = void>
+class max_impl_0
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
+        auto iend = std::end(seq);
+        auto imax = std::max_element(std::begin(seq), iend);
+        if (imax == iend) {
+            throw_linq_empty_sequence();
+        }
+        return *imax;
+    }
+};
+
+// Implementation of max operator (version with selector).
+template<typename Selector>
+class max_impl_1
+{
+private:
+    const Selector& sel_;   // Selector used to fetch values from sequence elements.
+
+public:
+    explicit max_impl_1(const Selector& sel)
+        : sel_(sel) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename std::decay<decltype(sel_(*std::begin(seq)))>::type {
+        auto icur = std::begin(seq);
+        auto iend = std::end(seq);
+        if (icur == iend) {
+            throw_linq_empty_sequence();
+        }
+        auto max_val = sel_(*icur);
+        while (++icur != iend) {
+            max_val = std::max(max_val, sel_(*icur));
+        }
+        return max_val;
+    }
+};
+
+// Implementation of min operator (version without parameters).
+template<typename = void>
+class min_impl_0
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
+        auto iend = std::end(seq);
+        auto imin = std::min_element(std::begin(seq), iend);
+        if (imin == iend) {
+            throw_linq_empty_sequence();
+        }
+        return *imin;
+    }
+};
+
+// Implementation of min operator (version with selector).
+template<typename Selector>
+class min_impl_1
+{
+private:
+    const Selector& sel_;   // Selector used to fetch values from sequence elements.
+
+public:
+    explicit min_impl_1(const Selector& sel)
+        : sel_(sel) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename std::decay<decltype(sel_(*std::begin(seq)))>::type {
+        auto icur = std::begin(seq);
+        auto iend = std::end(seq);
+        if (icur == iend) {
+            throw_linq_empty_sequence();
+        }
+        auto min_val = sel_(*icur);
+        while (++icur != iend) {
+            min_val = std::min(min_val, sel_(*icur));
+        }
+        return min_val;
+    }
+};
+
 // Implementation of a comparator using KeySelector and Pred.
 // Has an operator() that returns an int representing the comparison
 // between two objects (negative values means left is before right, etc.)
@@ -1275,8 +1760,8 @@ public:
     // Compares two values, returning relative position of the two in an ordered sequence.
     template<typename T1, typename T2>
     int operator()(T1&& left, T2&& right) const {
-        decltype(auto) leftk = key_sel_(left);
-        decltype(auto) rightk = key_sel_(right);
+        decltype(key_sel_(left)) leftk = key_sel_(left);
+        decltype(key_sel_(right)) rightk = key_sel_(right);
         int cmp;
         if (pred_(leftk, rightk)) {
             cmp = _LessValue;
@@ -1342,11 +1827,14 @@ private:
         for (auto&& elem : seq_) {
             spordered->push_back(elem);
         }
-        std::stable_sort(std::begin(*spordered), std::end(*spordered), [this](auto&& left, auto&& right) {
+        auto it = spordered->begin();
+        auto end = spordered->end();
+        std::stable_sort(it, end, [this](typename seq_traits<Seq>::const_reference left,
+                                         typename seq_traits<Seq>::const_reference right) {
             return (*upcmp_)(left, right) < 0;
         });
         enum_ = coveo::enumerable<typename seq_traits<Seq>::raw_value_type>(
-            [spordered, it = std::begin(*spordered), end = std::end(*spordered)](auto&&) mutable {
+            [spordered, it, end](cl::optional<typename seq_traits<Seq>::raw_value_type>&) mutable {
                 return it != end ? std::addressof(*it++) : nullptr;
             });
         init_flag_ = true;
@@ -1407,7 +1895,7 @@ public:
 
     // When applied to a sequence, produces a different object.
     template<typename Seq>
-    auto operator()(Seq&& seq) {
+    auto operator()(Seq&& seq) -> order_by_impl_with_seq<Seq, Cmp> {
         // Cannot apply twice.
         assert(upcmp_);
 
@@ -1416,15 +1904,17 @@ public:
 
     // When applied to an impl with sequence, merges the two and chains the comparators.
     template<typename ImplSeq, typename ImplCmp>
-    auto operator()(order_by_impl_with_seq<ImplSeq, ImplCmp>&& impl) {
+    auto operator()(order_by_impl_with_seq<ImplSeq, ImplCmp>&& impl)
+        -> order_by_impl_with_seq<ImplSeq, dual_order_by_comparator<ImplCmp, Cmp>>
+    {
         typedef dual_order_by_comparator<ImplCmp, Cmp> dual_comparator;
-        return order_by_impl_with_seq<ImplSeq, dual_comparator>(std::move(impl.seq_),
-                                                                std::make_unique<dual_comparator>(std::move(impl.upcmp_),
-                                                                                                  std::move(upcmp_)));
+        auto new_upcmp = detail::make_unique<dual_comparator>(std::move(impl.upcmp_), std::move(upcmp_));
+        return order_by_impl_with_seq<ImplSeq, dual_comparator>(std::move(impl.seq_), std::move(new_upcmp));
     }
 };
 
 // Implementation of reverse operator
+template<typename = void>
 class reverse_impl
 {
 private:
@@ -1434,7 +1924,7 @@ private:
         -> coveo::enumerable<typename seq_traits<Seq>::raw_value_type>
     {
         return coveo::enumerable<typename seq_traits<Seq>::raw_value_type>::for_range(
-            std::rbegin(seq), std::rend(seq));
+            seq.rbegin(), seq.rend());
     }
 
     // Otherwise we'll have to be creative
@@ -1446,8 +1936,10 @@ private:
         for (auto&& elem : seq) {
             spvpelems->push_back(elem);
         }
-        std::reverse(spvpelems->begin(), spvpelems->end());
-        return [spvpelems, it = std::begin(*spvpelems), end = std::end(*spvpelems)](auto&&) mutable {
+        auto it = spvpelems->begin();
+        auto end = spvpelems->end();
+        std::reverse(it, end);
+        return [spvpelems, it, end](cl::optional<typename seq_traits<Seq>::raw_value_type>&) mutable {
             return it != end ? std::addressof(*it++) : nullptr;
         };
     }
@@ -1627,6 +2119,178 @@ public:
     }
 };
 
+// Implementation of sequence_equal operator (version with sequence only).
+template<typename Seq2>
+class sequence_equal_impl_1
+{
+private:
+    const Seq2& seq2_;  // Second sequence to compare.
+
+public:
+    explicit sequence_equal_impl_1(const Seq2& seq2)
+        : seq2_(seq2) { }
+
+    template<typename Seq1>
+    auto operator()(Seq1&& seq1) -> bool {
+        // #clp-TODO replace with std::equal when available
+        auto icur1 = std::begin(seq1);
+        auto iend1 = std::end(seq1);
+        auto icur2 = std::begin(seq2_);
+        auto iend2 = std::end(seq2_);
+        bool is_equal = true;
+        for (; is_equal && icur1 != iend1 && icur2 != iend2; ++icur1, ++icur2) {
+            is_equal = *icur1 == *icur2;
+        }
+        return is_equal && icur1 == iend1 && icur2 == iend2;
+    }
+};
+
+// Implementation of sequence_equal operator (version with predicate).
+template<typename Seq2, typename Pred>
+class sequence_equal_impl_2
+{
+private:
+    const Seq2& seq2_;  // Second sequence to compare.
+    const Pred& pred_;  // Equality predicate.
+
+public:
+    sequence_equal_impl_2(const Seq2& seq2, const Pred& pred)
+        : seq2_(seq2), pred_(pred) { }
+
+    template<typename Seq1>
+    auto operator()(Seq1&& seq1) -> bool {
+        // #clp-TODO replace with std::equal when available
+        auto icur1 = std::begin(seq1);
+        auto iend1 = std::end(seq1);
+        auto icur2 = std::begin(seq2_);
+        auto iend2 = std::end(seq2_);
+        bool is_equal = true;
+        for (; is_equal && icur1 != iend1 && icur2 != iend2; ++icur1, ++icur2) {
+            is_equal = pred_(*icur1, *icur2);
+        }
+        return is_equal && icur1 == iend1 && icur2 == iend2;
+    }
+};
+
+// Implementation of single operator (version without parameters).
+template<typename = void>
+class single_impl_0
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
+        auto ifirst = std::begin(seq);
+        auto iend = std::end(seq);
+        if (ifirst == iend) {
+            throw_linq_empty_sequence();
+        }
+        auto inext = ifirst;
+        ++inext;
+        if (inext != iend) {
+            throw_linq_out_of_range();
+        }
+        return *ifirst;
+    }
+};
+
+// Implementation of single operator (version with predicate).
+template<typename Pred>
+class single_impl_1
+{
+private:
+    const Pred& pred_;  // Predicate to satisfy.
+
+public:
+    explicit single_impl_1(const Pred& pred)
+        : pred_(pred) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
+        auto ibeg = std::begin(seq);
+        auto iend = std::end(seq);
+        if (ibeg == iend) {
+            throw_linq_empty_sequence();
+        }
+        auto ifound = std::find_if(ibeg, iend, pred_);
+        if (ifound == iend) {
+            throw_linq_out_of_range();
+        }
+        auto inext = ifound;
+        ++inext;
+        auto ifoundagain = std::find_if(inext, iend, pred_);
+        if (ifoundagain != iend) {
+            throw_linq_out_of_range();
+        }
+        return *ifound;
+    }
+};
+
+// Implementation of single_or_default operator (version without parameters).
+template<typename = void>
+class single_or_default_impl_0
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
+        auto icur = std::begin(seq);
+        auto iend = std::end(seq);
+        if (icur != iend) {
+            auto inext = icur;
+            ++inext;
+            if (inext != iend) {
+                icur = iend;
+            }
+        }
+        return icur != iend ? *icur
+                            : typename seq_traits<Seq>::raw_value_type();
+    }
+};
+
+// Implementation of single_or_default operator (version with predicate).
+template<typename Pred>
+class single_or_default_impl_1
+{
+private:
+    const Pred& pred_;  // Predicate to satisfy.
+
+public:
+    explicit single_or_default_impl_1(const Pred& pred)
+        : pred_(pred) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
+        auto iend = std::end(seq);
+        auto ifound = std::find_if(std::begin(seq), iend, pred_);
+        if (ifound != iend) {
+            auto inext = ifound;
+            ++inext;
+            auto ifoundagain = std::find_if(inext, iend, pred_);
+            if (ifoundagain != iend) {
+                ifound = iend;
+            }
+        }
+        return ifound != iend ? *ifound
+                              : typename seq_traits<Seq>::raw_value_type();
+    }
+};
+
+// Predicate implementation used by skip operator
+template<typename = void>
+class skip_n_pred
+{
+private:
+    std::size_t n_; // Number of elements to skip.
+
+public:
+    explicit skip_n_pred(std::size_t n)
+        : n_(n) { }
+
+    template<typename T>
+    auto operator()(T&&, std::size_t idx) -> bool {
+        return idx < n_;
+    }
+};
+
 // Implementation of skip/skip_while/skip_while_with_index operators
 template<typename Pred>
 class skip_impl
@@ -1716,6 +2380,32 @@ public:
         applied_ = true;
 #endif
         return next_impl<Seq>(std::forward<Seq>(seq), std::forward<Pred>(pred_));
+    }
+};
+
+// Implementation of sum operator.
+template<typename F>
+class sum_impl
+{
+private:
+    const F& num_f_;    // Function to fetch values from sequence elements.
+
+public:
+    explicit sum_impl(const F& num_f)
+        : num_f_(num_f) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename std::decay<decltype(num_f_(*std::begin(seq)))>::type {
+        auto it = std::begin(seq);
+        auto end = std::end(seq);
+        if (it == end) {
+            throw_linq_empty_sequence();
+        }
+        auto total = num_f_(*it);
+        for (++it; it != end; ++it) {
+            total += num_f_(*it);
+        }
+        return total;
     }
 };
 
@@ -1815,6 +2505,144 @@ public:
     }
 };
 
+// Implementation of to operator.
+template<typename Container>
+class to_impl
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> Container {
+        return Container(std::begin(seq), std::end(seq));
+    }
+};
+
+// Implementation of to_vector operator.
+template<typename = void>
+class to_vector_impl
+{
+public:
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> std::vector<typename seq_traits<Seq>::raw_value_type> {
+        return std::vector<typename seq_traits<Seq>::raw_value_type>(std::begin(seq), std::end(seq));
+    }
+};
+
+// Implementation of to_associative operator (version with key selector only).
+template<typename Container, typename KeySelector>
+class to_associative_impl_1
+{
+private:
+    const KeySelector& key_sel_;    // Selector to fetch keys for sequence elements.
+
+public:
+    explicit to_associative_impl_1(const KeySelector& key_sel)
+        : key_sel_(key_sel) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> Container {
+        Container c;
+        for (auto&& elem : seq) {
+            // #clp TODO replace this with insert_or_assign once available
+            auto key = key_sel_(elem);
+            auto insert_res = c.insert(std::make_pair(key, elem));
+            if (!insert_res.second) {
+                insert_res.first->second = elem;
+            }
+        }
+        return c;
+    }
+};
+
+// Implementation of to_associative operator (version with key and element selectors).
+template<typename Container, typename KeySelector, typename ElementSelector>
+class to_associative_impl_2
+{
+private:
+    const KeySelector& key_sel_;        // Selector to fetch keys for sequence elements.
+    const ElementSelector& elem_sel_;   // Selector to fetch values for sequence elements.
+
+public:
+    to_associative_impl_2(const KeySelector& key_sel, const ElementSelector& elem_sel)
+        : key_sel_(key_sel), elem_sel_(elem_sel) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> Container {
+        Container c;
+        for (auto&& elem : seq) {
+            // #clp TODO replace this with insert_or_assign once available
+            auto key = key_sel_(elem);
+            auto mapped = elem_sel_(elem);
+            auto insert_res = c.insert(std::make_pair(key, mapped));
+            if (!insert_res.second) {
+                insert_res.first->second = mapped;
+            }
+        }
+        return c;
+    }
+};
+
+// Implementation of to_map operator (version with key selector only).
+template<typename KeySelector>
+class to_map_impl_1
+{
+private:
+    const KeySelector& key_sel_;    // Selector to fetch keys for sequence elements.
+
+public:
+    explicit to_map_impl_1(const KeySelector& key_sel)
+        : key_sel_(key_sel) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq)
+        -> std::map<typename std::decay<decltype(key_sel_(*std::begin(seq)))>::type,
+                    typename seq_traits<Seq>::raw_value_type>
+    {
+        std::map<typename std::decay<decltype(key_sel_(*std::begin(seq)))>::type,
+                 typename seq_traits<Seq>::raw_value_type> m;
+        for (auto&& elem : seq) {
+            // #clp TODO replace this with insert_or_assign once available
+            auto key = key_sel_(elem);
+            auto insert_res = m.insert(std::make_pair(key, elem));
+            if (!insert_res.second) {
+                insert_res.first->second = elem;
+            }
+        }
+        return m;
+    }
+};
+
+// Implementation of to_map operator (version with key and element selectors).
+template<typename KeySelector, typename ElementSelector>
+class to_map_impl_2
+{
+private:
+    const KeySelector& key_sel_;        // Selector to fetch keys for sequence elements.
+    const ElementSelector& elem_sel_;   // Selector to fetch values for sequence elements.
+
+public:
+    to_map_impl_2(const KeySelector& key_sel, const ElementSelector& elem_sel)
+        : key_sel_(key_sel), elem_sel_(elem_sel) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq)
+        -> std::map<typename std::decay<decltype(key_sel_(*std::begin(seq)))>::type,
+                    typename std::decay<decltype(elem_sel_(*std::begin(seq)))>::type>
+    {
+        std::map<typename std::decay<decltype(key_sel_(*std::begin(seq)))>::type,
+                 typename std::decay<decltype(elem_sel_(*std::begin(seq)))>::type> m;
+        for (auto&& elem : seq) {
+            // #clp TODO replace this with insert_or_assign once available
+            auto key = key_sel_(elem);
+            auto mapped = elem_sel_(elem);
+            auto insert_res = m.insert(std::make_pair(key, mapped));
+            if (!insert_res.second) {
+                insert_res.first->second = mapped;
+            }
+        }
+        return m;
+    }
+};
+
 // Implementation of union_with operator.
 template<typename Seq2, typename Pred>
 class union_impl
@@ -1906,7 +2734,9 @@ public:
               seen_(spinfo_->init_seen_elements()) { }
 
         template<typename Op>
-        auto operator()(Op&) {
+        auto operator()(Op&)
+            -> decltype(spinfo_->get_next(icur1_, icur2_, seen_))
+        {
             return spinfo_->get_next(icur1_, icur2_, seen_);
         }
     };
@@ -1991,7 +2821,7 @@ public:
               icur_(std::begin(spinfo_->seq_)), idx_(0) { }
 
         template<typename Op>
-        auto operator()(Op&) {
+        auto operator()(Op&) -> typename seq_traits<Seq>::const_pointer {
             typename seq_traits<Seq>::const_pointer pobj = nullptr;
             for (; pobj == nullptr && icur_ != spinfo_->iend_; ++icur_, ++idx_) {
                 typename seq_traits<Seq>::const_reference robj = *icur_;

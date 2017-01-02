@@ -49,11 +49,11 @@ private:
 public:
     // Default constructor over empty sequence
     enumerable()
-        : zero_([](auto&&) -> pointer { return nullptr; }) { }
+        : zero_([](cl::optional<T>&) -> pointer { return nullptr; }) { }
 
     // Constructor with next delegate
     template<typename F,
-             typename = std::enable_if_t<!is_enumerable<std::decay_t<F>>::value, void>>
+             typename = typename std::enable_if<!is_enumerable<typename std::decay<F>::type>::value, void>::type>
     enumerable(F&& next)
         : zero_(std::forward<F>(next)) { }
 
@@ -226,8 +226,9 @@ public:
     // Returns enumerable over sequence of one element. Stores the element (moving it if possible).
     template<typename U>
     static enumerable<T> for_one(U&& obj) {
-        return [spobj = std::make_shared<value_type>(std::forward<U>(obj)),
-                available = true](auto&&) mutable {
+        auto spobj = std::make_shared<value_type>(std::forward<U>(obj));
+        bool available = true;
+        return [spobj, available](cl::optional<T>&) mutable {
             pointer pobj = nullptr;
             if (available) {
                 pobj = spobj.get();
@@ -239,7 +240,8 @@ public:
 
     // Returns enumerable over sequence of one external element.
     static enumerable<T> for_one_ref(const T& obj) {
-        return [&obj, available = true](auto&&) mutable {
+        bool available = true;
+        return [&obj, available](cl::optional<T>&) mutable {
             pointer pobj = nullptr;
             if (available) {
                 pobj = std::addressof(obj);
@@ -252,8 +254,9 @@ public:
     // Returns enumerable over sequence bound by two iterators.
     template<typename ItBeg, typename ItEnd>
     static enumerable<T> for_range(ItBeg&& ibeg, ItEnd&& iend) {
-        return [it = std::forward<ItBeg>(ibeg),
-                end = std::forward<ItEnd>(iend)](auto&&) mutable {
+        auto it = std::forward<ItBeg>(ibeg);
+        auto end = std::forward<ItEnd>(iend);
+        return [it, end](cl::optional<T>&) mutable {
             pointer pobj = nullptr;
             if (it != end) {
                 reference robj = *it;
@@ -273,8 +276,9 @@ public:
             spcnt = std::make_shared<const C>(cnt);
             pcnt = spcnt.get();
         }
-        return [spcnt, it = std::begin(*pcnt),
-                end = std::end(*pcnt)](auto&&) mutable {
+        auto it = std::begin(*pcnt);
+        auto end = std::end(*pcnt);
+        return [spcnt, it, end](cl::optional<T>&) mutable {
             pointer pobj = nullptr;
             if (it != end) {
                 reference robj = *it;
@@ -287,11 +291,12 @@ public:
 
     // Returns enumerable over a container, storing it internally (by moving it).
     template<typename C,
-             typename = std::enable_if_t<!std::is_reference<C>::value, void>>
+             typename = typename std::enable_if<!std::is_reference<C>::value, void>::type>
     static enumerable<T> for_container(C&& cnt) {
         auto spcnt = std::make_shared<const C>(std::move(cnt));
-        return [spcnt, it = std::begin(*spcnt),
-                end = std::end(*spcnt)](auto&&) mutable {
+        auto it = std::begin(*spcnt);
+        auto end = std::end(*spcnt);
+        return [spcnt, it, end](cl::optional<T>&) mutable {
             pointer pobj = nullptr;
             if (it != end) {
                 reference robj = *it;
@@ -313,41 +318,51 @@ public:
 
 // Returns enumerable for sequence of one element, stored internally (moved if possible).
 template<typename U>
-auto enumerate_one(U&& obj) {
-    return enumerable<typename detail::seq_element_traits<std::decay_t<U>>::raw_value_type>::for_one(std::forward<U>(obj));
+auto enumerate_one(U&& obj)
+    -> enumerable<typename detail::seq_element_traits<typename std::decay<U>::type>::raw_value_type>
+{
+    return enumerable<typename detail::seq_element_traits<typename std::decay<U>::type>::raw_value_type>::for_one(std::forward<U>(obj));
 }
 
 // Returns enumerable for sequence of one element, stored externally.
 template<typename T>
-auto enumerate_one_ref(const T& obj) {
+auto enumerate_one_ref(const T& obj) -> enumerable<T> {
     return enumerable<T>::for_one_ref(obj);
 }
 
 // Returns enumerable for sequence defined by two iterators.
 template<typename ItBeg, typename ItEnd>
-auto enumerate_range(ItBeg&& ibeg, ItEnd&& iend) {
+auto enumerate_range(ItBeg&& ibeg, ItEnd&& iend)
+    -> enumerable<typename detail::seq_element_traits<decltype(*std::declval<ItBeg>())>::raw_value_type>
+{
     return enumerable<typename detail::seq_element_traits<decltype(*std::declval<ItBeg>())>::raw_value_type>::for_range(
         std::forward<ItBeg>(ibeg), std::forward<ItEnd>(iend));
 }
 
 // Returns enumerable for container, optionally copying container internally.
 template<typename C>
-auto enumerate_container(const C& cnt, const bool copy_cnt = false) {
+auto enumerate_container(const C& cnt, const bool copy_cnt = false)
+    -> enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<const C>()))>::raw_value_type>
+{
     return enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<const C>()))>::raw_value_type>::for_container(
         cnt, copy_cnt);
 }
 
 // Returns enumerable for container, stored internally (by moving it).
 template<typename C,
-         typename = std::enable_if_t<!std::is_reference<C>::value, void>>
-auto enumerate_container(C&& cnt) {
+         typename = typename std::enable_if<!std::is_reference<C>::value, void>::type>
+auto enumerate_container(C&& cnt)
+    -> enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<const C>()))>::raw_value_type>
+{
     return enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<const C>()))>::raw_value_type>::for_container(
         std::move(cnt));
 }
 
 // Returns enumerable for dynamic array.
 template<typename T>
-auto enumerate_array(const T* const parr, const size_t siz) {
+auto enumerate_array(const T* const parr, const size_t siz)
+    -> decltype(enumerate_range(parr, parr + siz))
+{
     // This works even if siz is 0 or if parr is nullptr.
     return enumerate_range(parr, parr + siz);
 }

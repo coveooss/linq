@@ -35,3 +35,6 @@
 *.opendb
 bin/
 obj/
+
+# CMake files
+cmake-build-*/

@@ -9,7 +9,6 @@ namespace linq {
 
 void linq_tests();
 void chaining_tests();
-void demo_tests();
 
 } // linq
 } // coveo_tests

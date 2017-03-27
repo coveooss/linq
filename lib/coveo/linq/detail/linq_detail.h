@@ -1834,7 +1834,7 @@ private:
             return (*upcmp_)(left, right) < 0;
         });
         enum_ = coveo::enumerable<typename seq_traits<Seq>::raw_value_type>(
-            [spordered, it, end](cl::optional<typename seq_traits<Seq>::raw_value_type>&) mutable {
+            [spordered, it, end](std::unique_ptr<typename seq_traits<Seq>::raw_value_type>&) mutable {
                 return it != end ? std::addressof(*it++) : nullptr;
             });
         init_flag_ = true;
@@ -1939,7 +1939,7 @@ private:
         auto it = spvpelems->begin();
         auto end = spvpelems->end();
         std::reverse(it, end);
-        return [spvpelems, it, end](cl::optional<typename seq_traits<Seq>::raw_value_type>&) mutable {
+        return [spvpelems, it, end](std::unique_ptr<typename seq_traits<Seq>::raw_value_type>&) mutable {
             return it != end ? std::addressof(*it++) : nullptr;
         };
     }
@@ -1994,11 +1994,15 @@ public:
                                                     std::forward<Selector>(sel))),
               icur_(std::begin(spinfo_->seq_)), idx_(0) { }
 
-        auto operator()(cl::optional<U>& opt) -> const U* {
+        auto operator()(std::unique_ptr<U>& upopt) -> const U* {
             const U* pobj = nullptr;
             if (icur_ != spinfo_->iend_) {
-                opt = spinfo_->sel_(*icur_, idx_);
-                pobj = std::addressof(*opt);
+                if (upopt != nullptr) {
+                    *upopt = spinfo_->sel_(*icur_, idx_);
+                } else {
+                    upopt.reset(new U(spinfo_->sel_(*icur_, idx_)));
+                }
+                pobj = std::addressof(*upopt);
                 ++icur_;
                 ++idx_;
             }
@@ -2075,7 +2079,7 @@ public:
                                                     std::forward<Selector>(sel))),
               icur_(std::begin(spinfo_->seq_)), idx_(0), cache_() { }
 
-        auto operator()(cl::optional<U>& opt) -> const U* {
+        auto operator()(std::unique_ptr<U>& upopt) -> const U* {
             const U* pobj = nullptr;
             while (cache_.empty() && icur_ != spinfo_->iend_) {
                 auto new_results = spinfo_->sel_(*icur_, idx_);
@@ -2084,8 +2088,12 @@ public:
                 ++idx_;
             }
             if (!cache_.empty()) {
-                opt = cache_.front();
-                pobj = std::addressof(*opt);
+                if (upopt != nullptr) {
+                    *upopt = cache_.front();
+                } else {
+                    upopt.reset(new U(cache_.front()));
+                }
+                pobj = std::addressof(*upopt);
                 cache_.pop_front();
             }
             return pobj;
@@ -2916,11 +2924,15 @@ public:
               icur1_(std::begin(spinfo_->seq1_)),
               icur2_(std::begin(spinfo_->seq2_)) { }
 
-        auto operator()(cl::optional<U>& opt) -> const U* {
+        auto operator()(std::unique_ptr<U>& upopt) -> const U* {
             const U* pobj = nullptr;
             if (icur1_ != spinfo_->iend1_ && icur2_ != spinfo_->iend2_) {
-                opt = spinfo_->result_sel_(*icur1_, *icur2_);
-                pobj = std::addressof(*opt);
+                if (upopt != nullptr) {
+                    *upopt = spinfo_->result_sel_(*icur1_, *icur2_);
+                } else {
+                    upopt.reset(new U(spinfo_->result_sel_(*icur1_, *icur2_)));
+                }
+                pobj = std::addressof(*upopt);
                 ++icur1_;
                 ++icur2_;
             }

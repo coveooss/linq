@@ -6,8 +6,7 @@
 #include <coveo/enumerable.h>
 #include <coveo/test_framework.h>
 
-#include <functional>
-#include <iterator>
+#include <list>
 #include <vector>
 
 namespace coveo_tests {
@@ -29,6 +28,17 @@ template<typename T, typename C>
 void validate_sequence(const coveo::enumerable<T>& seq, const C& expected) {
     validate_sequence(seq, expected, std::equal_to<T>());
 }
+
+// Simple struct that cannot be copied.
+struct no_copy {
+    int i_;
+    no_copy(int i) : i_(i) { }
+    no_copy(const no_copy&) = delete;
+    no_copy& operator=(const no_copy&) = delete;
+    bool operator==(const no_copy& obj) const {
+        return i_ == obj.i_;
+    }
+};
 
 } // detail
 
@@ -142,6 +152,23 @@ void enumerable_tests()
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_arr = coveo::enumerate_array(arr, arr_size);
         detail::validate_sequence(seq_arr, vexpected);
+    }
+
+    // Objects that cannot be copied
+    {
+        detail::no_copy an_obj(42);
+        bool avail = true;
+        auto seq = coveo::enumerable<detail::no_copy>([&](std::unique_ptr<detail::no_copy>&) {
+            detail::no_copy* pobj = nullptr;
+            if (avail) {
+                pobj = &an_obj;
+                avail = false;
+            }
+            return pobj;
+        });
+        std::list<detail::no_copy> lexpected;
+        lexpected.emplace_back(42);
+        detail::validate_sequence(seq, lexpected);
     }
 }
 

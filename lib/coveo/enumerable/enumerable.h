@@ -8,8 +8,6 @@
 
 #include <coveo/enumerable/detail/enumerable_detail.h>
 
-#include <cl/optional.h>
-
 #include <cstddef>
 #include <iterator>
 #include <functional>
@@ -33,7 +31,7 @@ public:
 
     // Delegate that returns next element in sequence, or nullptr when done.
     // Receives a stable optional<T> each time that can be used to store next value.
-    typedef std::function<pointer(cl::optional<T>&)>                    next_delegate;
+    typedef std::function<pointer(std::unique_ptr<T>&)>                 next_delegate;
 
     // Forward declaration of iterator class.
     class const_iterator;
@@ -49,7 +47,7 @@ private:
 public:
     // Default constructor over empty sequence
     enumerable()
-        : zero_([](cl::optional<T>&) -> pointer { return nullptr; }) { }
+        : zero_([](std::unique_ptr<T>&) -> pointer { return nullptr; }) { }
 
     // Constructor with next delegate
     template<typename F,
@@ -90,25 +88,25 @@ public:
                                        typename enumerable<T>::reference>::reference    reference;
 
     private:
-        const enumerable<T>* pparent_;  // Parent enumerable or nullptr if unbound
-        mutable next_delegate next_;    // Delegate to use to fetch elements
-        mutable cl::optional<T> opt_;   // Optional storage passed to the delegate
-        mutable pointer pcur_;          // Pointer to current element or nullptr when at end of sequence
-        mutable bool has_cur_;          // Whether pcur_ has been loaded for current element
-        size_t pos_;                    // Position in sequence, to compare iterators
+        const enumerable<T>* pparent_;      // Parent enumerable or nullptr if unbound
+        mutable next_delegate next_;        // Delegate to use to fetch elements
+        mutable std::unique_ptr<T> upopt_;  // Optional storage passed to the delegate
+        mutable pointer pcur_;              // Pointer to current element or nullptr when at end of sequence
+        mutable bool has_cur_;              // Whether pcur_ has been loaded for current element
+        size_t pos_;                        // Position in sequence, to compare iterators
 
-        // Fetches value of pcur_ when copying/assigning from another iterator
-        static pointer get_copied_pcur(const cl::optional<T>& our_opt,
-                                       const cl::optional<T>& copied_opt,
+        // Fetches value of pcur_ when copying/assigning from another iterator.
+        static pointer get_copied_pcur(const std::unique_ptr<T>& our_upopt,
+                                       const std::unique_ptr<T>& copied_upopt,
                                        pointer copied_pcur)
         {
             pointer pcur = copied_pcur;
-            if (copied_opt.has_value()) {
-                reference rcopied = *copied_opt;
+            if (copied_upopt != nullptr && our_upopt != nullptr) {
+                reference rcopied = *copied_upopt;
                 pointer pcopied = std::addressof(rcopied);
                 if (copied_pcur == pcopied) {
                     // Other iterator points to its internal object, point to ours
-                    reference rours = *our_opt;
+                    reference rours = *our_upopt;
                     pcur = std::addressof(rours);
                 }
             }
@@ -118,7 +116,7 @@ public:
         // Fetches value of pcur_, late-loading it if needed
         pointer get_pcur() const {
             if (!has_cur_) {
-                pcur_ = next_(opt_);
+                pcur_ = next_(upopt_);
                 has_cur_ = true;
             }
             return pcur_;
@@ -127,25 +125,22 @@ public:
     public:
         // Default constructor
         const_iterator()
-            : pparent_(nullptr), next_(), opt_(), pcur_(nullptr), has_cur_(true), pos_(0) { }
+            : pparent_(nullptr), next_(), upopt_(), pcur_(nullptr), has_cur_(true), pos_(0) { }
 
         // Constructor from enumerable
         const_iterator(const enumerable<T>& parent, const bool is_end)
             : pparent_(&parent), next_(!is_end ? parent.zero_ : next_delegate()),
-              opt_(), pcur_(nullptr), has_cur_(is_end), pos_(0) { }
+              upopt_(), pcur_(nullptr), has_cur_(is_end), pos_(0) { }
 
         // Copy/move semantics
         const_iterator(const const_iterator& obj)
-            : pparent_(obj.pparent_), next_(obj.next_), opt_(obj.opt_),
-              pcur_(get_copied_pcur(opt_, obj.opt_, obj.pcur_)),
-              has_cur_(obj.has_cur_), pos_(obj.pos_) { }
+            : pparent_(obj.pparent_), next_(obj.next_), upopt_(detail::get_copied_upopt<T>(obj.upopt_)),
+              pcur_(get_copied_pcur(upopt_, obj.upopt_, obj.pcur_)), has_cur_(obj.has_cur_), pos_(obj.pos_) { }
         const_iterator(const_iterator&& obj)
-            : pparent_(obj.pparent_), next_(std::move(obj.next_)), opt_(std::move(obj.opt_)),
-              pcur_(get_copied_pcur(opt_, obj.opt_, obj.pcur_)),
-              has_cur_(obj.has_cur_), pos_(obj.pos_)
+            : pparent_(obj.pparent_), next_(std::move(obj.next_)), upopt_(std::move(obj.upopt_)),
+              pcur_(obj.pcur_), has_cur_(obj.has_cur_), pos_(obj.pos_)
         {
             obj.pparent_ = nullptr;
-            obj.opt_.reset();
             obj.pcur_ = nullptr;
             obj.has_cur_ = true;
             obj.pos_ = 0;
@@ -155,8 +150,8 @@ public:
             if (this != &obj) {
                 pparent_ = obj.pparent_;
                 next_ = obj.next_;
-                opt_ = obj.opt_;
-                pcur_ = get_copied_pcur(opt_, obj.opt_, obj.pcur_);
+                upopt_ = detail::get_copied_upopt<T>(obj.upopt_);
+                pcur_ = get_copied_pcur(upopt_, obj.upopt_, obj.pcur_);
                 has_cur_ = obj.has_cur_;
                 pos_ = obj.pos_;
             }
@@ -165,13 +160,12 @@ public:
         const_iterator& operator=(const_iterator&& obj) {
             pparent_ = obj.pparent_;
             next_ = std::move(obj.next_);
-            opt_ = std::move(obj.opt_);
-            pcur_ = get_copied_pcur(opt_, obj.opt_, obj.pcur_);
+            upopt_ = std::move(obj.upopt_);
+            pcur_ = obj.pcur_;
             has_cur_ = obj.has_cur_;
             pos_ = obj.pos_;
 
             obj.pparent_ = nullptr;
-            obj.opt_.reset();
             obj.pcur_ = nullptr;
             obj.has_cur_ = true;
             obj.pos_ = 0;
@@ -193,7 +187,7 @@ public:
                 pcur_ = nullptr;
                 has_cur_ = false;
             } else {
-                next_(opt_);
+                next_(upopt_);
             }
             ++pos_;
             return *this;
@@ -228,7 +222,7 @@ public:
     static enumerable<T> for_one(U&& obj) {
         auto spobj = std::make_shared<value_type>(std::forward<U>(obj));
         bool available = true;
-        return [spobj, available](cl::optional<T>&) mutable {
+        return [spobj, available](std::unique_ptr<T>&) mutable {
             pointer pobj = nullptr;
             if (available) {
                 pobj = spobj.get();
@@ -241,7 +235,7 @@ public:
     // Returns enumerable over sequence of one external element.
     static enumerable<T> for_one_ref(const T& obj) {
         bool available = true;
-        return [&obj, available](cl::optional<T>&) mutable {
+        return [&obj, available](std::unique_ptr<T>&) mutable {
             pointer pobj = nullptr;
             if (available) {
                 pobj = std::addressof(obj);
@@ -256,7 +250,7 @@ public:
     static enumerable<T> for_range(ItBeg&& ibeg, ItEnd&& iend) {
         auto it = std::forward<ItBeg>(ibeg);
         auto end = std::forward<ItEnd>(iend);
-        return [it, end](cl::optional<T>&) mutable {
+        return [it, end](std::unique_ptr<T>&) mutable {
             pointer pobj = nullptr;
             if (it != end) {
                 reference robj = *it;
@@ -278,7 +272,7 @@ public:
         }
         auto it = std::begin(*pcnt);
         auto end = std::end(*pcnt);
-        return [spcnt, it, end](cl::optional<T>&) mutable {
+        return [spcnt, it, end](std::unique_ptr<T>&) mutable {
             pointer pobj = nullptr;
             if (it != end) {
                 reference robj = *it;
@@ -296,7 +290,7 @@ public:
         auto spcnt = std::make_shared<const C>(std::move(cnt));
         auto it = std::begin(*spcnt);
         auto end = std::end(*spcnt);
-        return [spcnt, it, end](cl::optional<T>&) mutable {
+        return [spcnt, it, end](std::unique_ptr<T>&) mutable {
             pointer pobj = nullptr;
             if (it != end) {
                 reference robj = *it;

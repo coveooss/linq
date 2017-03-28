@@ -16,10 +16,10 @@ int main()
     auto is_even = [](int i) { return i % 2 == 0; };
 
     auto seq = from(FIRST)
-            >> intersect(SECOND)                    // Intersect both arrays
-            >> where([](int i) { return i != 13; }) // I'm supersticious, remove 13
-            >> order_by_descending(is_even)         // Place even numbers first
-            >> then_by([](int i) { return i; });    // Then sort numbers ascending
+             | intersect(SECOND)                    // Intersect both arrays
+             | where([](int i) { return i != 13; }) // I'm supersticious, remove 13
+             | order_by_descending(is_even)         // Place even numbers first
+             | then_by([](int i) { return i; });    // Then sort numbers ascending
 
     std::cout << std::endl;
     for (auto&& elem : seq) {
@@ -36,10 +36,4 @@ int main()
 The library is header-only. Therefore, to add it to your project, simply copy the content of the `lib` directory to a suitable place in your structure and add that path to your include paths. Look at the `test` project/makefile for examples.
 
 ## Compiler support
-`coveo::linq` requires a C++ compiler that is fairly up-to-date with the C++11/14/17 standard. It has been successfully tested with the following compilers; YMMV.
-
-* Microsoft Visual Studio 2015 Update 3
-* GCC 5.4.1
-* Clang 3.8.1
-
-There is also a branch named `ubuntu-14-04` with code that has been downgraded a bit to compile on Ubuntu 14.04 (as its name implies).
+This branch's code has been downgraded as to be able to compile on Ubuntu 14.04 (as its name implies). It can probably only be compiled with Clang.

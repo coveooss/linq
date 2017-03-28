@@ -54,13 +54,11 @@ void enumerable_tests()
 
     // sequence defined by next delegate
     {
-        const int i = 42;
         std::vector<int> vi = { 42 };
-        bool avail = true;
-        auto seq_i = coveo::enumerable<int>([&](std::unique_ptr<int>&) -> const int* {
-            if (avail) { 
-                avail = false;
-                return &i;
+        auto seq_i = coveo::enumerable<int>([](std::unique_ptr<int>& upi) -> const int* {
+            if (upi == nullptr) {
+                upi.reset(new int(42));
+                return upi.get();
             } else {
                 return nullptr;
             }

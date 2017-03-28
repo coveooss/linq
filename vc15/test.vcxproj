@@ -162,8 +162,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\lib\cl\optional.h" />
-    <ClInclude Include="..\lib\cl\optional\optional.h" />
     <ClInclude Include="..\lib\coveo\enumerable.h" />
     <ClInclude Include="..\lib\coveo\enumerable\detail\enumerable_detail.h" />
     <ClInclude Include="..\lib\coveo\enumerable\enumerable.h" />

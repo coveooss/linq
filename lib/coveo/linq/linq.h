@@ -25,8 +25,8 @@ namespace linq {
 //
 //   using namespace coveo::linq;
 //   auto result = from(some_sequence)
-//              >> linq_operator(...)
-//              >> ...;
+//               | linq_operator(...)
+//               | ...;
 //
 template<typename Seq>
 auto from(Seq&& seq_) -> decltype(std::forward<Seq>(seq_)) {
@@ -38,8 +38,8 @@ auto from(Seq&& seq_) -> decltype(std::forward<Seq>(seq_)) {
 //
 //   using namespace coveo::linq;
 //   auto result = from_range(something.begin(), something.end())
-//              >> linq_operator(...)
-//              >> ...;
+//               | linq_operator(...)
+//               | ...;
 //
 template<typename ItBeg, typename ItEnd>
 auto from_range(ItBeg&& ibeg, ItEnd&& iend)
@@ -53,8 +53,8 @@ auto from_range(ItBeg&& ibeg, ItEnd&& iend)
 //
 //   using namespace coveo::linq;
 //   auto result = from_int_range(1, 10)
-//              >> linq_operator(...)
-//              >> ...;
+//               | linq_operator(...)
+//               | ...;
 //
 template<typename IntT>
 auto from_int_range(IntT first, std::size_t count)
@@ -73,8 +73,8 @@ auto from_int_range(IntT first, std::size_t count)
 //
 //   using namespace coveo::linq;
 //   auto result = from_repeated("Life", 7)
-//              >> linq_operator(...)
-//              >> ...;
+//               | linq_operator(...)
+//               | ...;
 //
 template<typename T>
 auto from_repeated(const T& value, std::size_t count)
@@ -94,11 +94,11 @@ auto from_repeated(const T& value, std::size_t count)
 //
 //   using namespace coveo::linq;
 //   auto result = from(some_sequence)
-//              >> linq_op_1(...)
-//              >> linq_op_2(...);
+//               | linq_op_1(...)
+//               | linq_op_2(...);
 //
 template<typename Seq, typename Op>
-auto operator>>(Seq&& seq, Op&& op) -> decltype(op(std::forward<Seq>(seq))) {
+auto operator|(Seq&& seq, Op&& op) -> decltype(op(std::forward<Seq>(seq))) {
     return op(std::forward<Seq>(seq));
 }
 

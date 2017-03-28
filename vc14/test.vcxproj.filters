@@ -31,12 +31,6 @@
     <Filter Include="tests\coveo\enumerable">
       <UniqueIdentifier>{6783813d-6a02-4247-95b5-2748196e13cd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="lib\cl">
-      <UniqueIdentifier>{d12de2fa-9023-40ef-850e-37edd19ed955}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="lib\cl\optional">
-      <UniqueIdentifier>{da33de1f-cb9a-4e6a-b17e-b1a3efaebaa7}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\tests\coveo\test_framework.h">
@@ -71,12 +65,6 @@
     </ClInclude>
     <ClInclude Include="..\lib\coveo\linq\exception.h">
       <Filter>lib\coveo\linq</Filter>
-    </ClInclude>
-    <ClInclude Include="..\lib\cl\optional.h">
-      <Filter>lib\cl</Filter>
-    </ClInclude>
-    <ClInclude Include="..\lib\cl\optional\optional.h">
-      <Filter>lib\cl\optional</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

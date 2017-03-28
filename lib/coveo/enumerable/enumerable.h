@@ -51,9 +51,19 @@ public:
 
     // Constructor with next delegate
     template<typename F,
-             typename = typename std::enable_if<!is_enumerable<typename std::decay<F>::type>::value, void>::type>
-    enumerable(F&& next)
+             typename V = typename std::enable_if<!is_enumerable<typename std::decay<F>::type>::value &&
+                                                  !detail::has_begin<typename std::decay<F>::type>::value &&
+                                                  !detail::has_end<typename std::decay<F>::type>::value, void*>::type>
+    enumerable(F&& next, V = nullptr)
         : zero_(std::forward<F>(next)) { }
+
+    // Constructor with "container" (anything on which std::begin/std::end works)
+    template<typename C,
+             typename V = typename std::enable_if<!is_enumerable<typename std::decay<C>::type>::value &&
+                                                  detail::has_begin<typename std::decay<C>::type>::value &&
+                                                  detail::has_end<typename std::decay<C>::type>::value, void*>::type>
+    enumerable(C&& cnt, V = nullptr, V = nullptr)
+        : zero_() { *this = for_container(std::forward<C>(cnt)); }
 
     // Access to beginning or end of sequence
     const_iterator begin() const {
@@ -261,18 +271,12 @@ public:
         };
     }
 
-    // Returns enumerable over a container, optionally copying it.
+    // Returns enumerable over a container, stored externally.
     template<typename C>
-    static enumerable<T> for_container(const C& cnt, const bool copy_cnt = false) {
-        std::shared_ptr<const C> spcnt;
-        const C* pcnt = std::addressof(cnt);
-        if (copy_cnt) {
-            spcnt = std::make_shared<const C>(cnt);
-            pcnt = spcnt.get();
-        }
-        auto it = std::begin(*pcnt);
-        auto end = std::end(*pcnt);
-        return [spcnt, it, end](std::unique_ptr<T>&) mutable {
+    static enumerable<T> for_container(const C& cnt) {
+        auto it = std::begin(cnt);
+        auto end = std::end(cnt);
+        return [it, end](std::unique_ptr<T>&) mutable {
             pointer pobj = nullptr;
             if (it != end) {
                 reference robj = *it;
@@ -283,7 +287,7 @@ public:
         };
     }
 
-    // Returns enumerable over a container, storing it internally (by moving it).
+    // Returns enumerable over a container, stored internally (by moving it).
     template<typename C,
              typename = typename std::enable_if<!std::is_reference<C>::value, void>::type>
     static enumerable<T> for_container(C&& cnt) {
@@ -333,13 +337,13 @@ auto enumerate_range(ItBeg&& ibeg, ItEnd&& iend)
         std::forward<ItBeg>(ibeg), std::forward<ItEnd>(iend));
 }
 
-// Returns enumerable for container, optionally copying container internally.
+// Returns enumerable for container, stored externally.
 template<typename C>
-auto enumerate_container(const C& cnt, const bool copy_cnt = false)
+auto enumerate_container(const C& cnt)
     -> enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<const C>()))>::raw_value_type>
 {
     return enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<const C>()))>::raw_value_type>::for_container(
-        cnt, copy_cnt);
+        cnt);
 }
 
 // Returns enumerable for container, stored internally (by moving it).

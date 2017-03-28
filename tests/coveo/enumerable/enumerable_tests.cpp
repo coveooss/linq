@@ -52,6 +52,22 @@ void enumerable_tests()
         detail::validate_sequence(empty_seq, vempty);
     }
 
+    // sequence defined by next delegate
+    {
+        const int i = 42;
+        std::vector<int> vi = { 42 };
+        bool avail = true;
+        auto seq_i = coveo::enumerable<int>([&](std::unique_ptr<int>&) -> const int* {
+            if (avail) { 
+                avail = false;
+                return &i;
+            } else {
+                return nullptr;
+            }
+        });
+        detail::validate_sequence(seq_i, vi);
+    }
+
     // sequence of one element
     {
         std::vector<int> vone = { 42 };
@@ -92,7 +108,13 @@ void enumerable_tests()
         detail::validate_sequence(seq_range, vexpected);
     }
 
-    // sequence stored in container (not copied)
+    // sequence stored in container (externally)
+    {
+        std::vector<int> vcnt = { 42, 23, 66 };
+        std::vector<int> vexpected = { 42, 23, 66 };
+        auto seq_cnt = coveo::enumerable<int>(vcnt);
+        detail::validate_sequence(seq_cnt, vexpected);
+    }
     {
         std::vector<int> vcnt = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
@@ -106,27 +128,12 @@ void enumerable_tests()
         detail::validate_sequence(seq_cnt, vexpected);
     }
 
-    // sequence stored in container (copied)
+    // sequence stored in container (internally)
     {
-        coveo::enumerable<int> seq_cnt_cp;
-        {
-            std::vector<int> vcnt = { 42, 23, 66 };
-            seq_cnt_cp = coveo::enumerable<int>::for_container(vcnt, true);
-        }
         std::vector<int> vexpected = { 42, 23, 66 };
-        detail::validate_sequence(seq_cnt_cp, vexpected);
+        auto seq_cnt_mv = coveo::enumerable<int>(std::vector<int> { 42, 23, 66 });
+        detail::validate_sequence(seq_cnt_mv, vexpected);
     }
-    {
-        coveo::enumerable<int> seq_cnt_cp;
-        {
-            std::vector<int> vcnt = { 42, 23, 66 };
-            seq_cnt_cp = coveo::enumerate_container(vcnt, true);
-        }
-        std::vector<int> vexpected = { 42, 23, 66 };
-        detail::validate_sequence(seq_cnt_cp, vexpected);
-    }
-
-    // sequence stored in container (moved)
     {
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt_mv = coveo::enumerable<int>::for_container(std::vector<int> { 42, 23, 66 });

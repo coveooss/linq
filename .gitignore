@@ -38,3 +38,6 @@ obj/
 
 # CMake files
 cmake-build-*/
+
+# CLion files
+.idea/

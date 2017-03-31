@@ -154,6 +154,7 @@ void linq_tests()
                  | concat(std::vector<int>{ 11, 7 });
         COVEO_ASSERT(detail::equal(std::begin(all), std::end(all),
                                    std::begin(ab), std::end(ab)));
+        COVEO_ASSERT(all.size() == ab.size());
     }
 
     // contains

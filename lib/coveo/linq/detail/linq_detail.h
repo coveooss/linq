@@ -53,10 +53,8 @@ public:
         : ppred_(std::addressof(pred)) { }
     
     template<typename T, typename U>
-    auto operator()(const T& left, const U& right) const
-        -> decltype((*ppred_)(left, right))
-    {
-        return (*ppred_)(left, right);
+    auto operator()(T&& left, U&& right) const -> decltype((*ppred_)(std::forward<T>(left), std::forward<U>(right))) {
+        return (*ppred_)(std::forward<T>(left), std::forward<U>(right));
     }
 };
 
@@ -73,8 +71,8 @@ public:
         : sel_(std::forward<Selector>(sel)) { }
 
     template<typename T>
-    auto operator()(T&& element, std::size_t) -> decltype(sel_(element)) {
-        return sel_(element);
+    auto operator()(T&& element, std::size_t) -> decltype(sel_(std::forward<T>(element))) {
+        return sel_(std::forward<T>(element));
     }
 };
 
@@ -101,15 +99,15 @@ struct pair_of {
 template<typename = void>
 struct less {
     template<typename T, typename U>
-    bool operator()(T&& obj1, U&& obj2) const {
-        return obj1 < obj2;
+    auto operator()(T&& left, U&& right) const -> decltype(std::forward<T>(left) < std::forward<U>(right)) {
+        return std::forward<T>(left) < std::forward<U>(right);
     }
 };
 template<typename = void>
 struct greater {
     template<typename T, typename U>
-    bool operator()(T&& obj1, U&& obj2) const {
-        return obj1 > obj2;
+    auto operator()(T&& left, U&& right) const -> decltype(std::forward<T>(left) > std::forward<U>(right)) {
+        return std::forward<T>(left) > std::forward<U>(right);
     }
 };
 
@@ -117,6 +115,56 @@ struct greater {
 template<typename T, typename... Args>
 std::unique_ptr<T> make_unique(Args&&... args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+};
+
+// Helper that reserves space in a container based on the number of elements in a sequence
+// If it's possible to do so quickly (e.g. with random-access iterators or size())
+template<typename C, typename Seq>
+auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<coveo::detail::has_size_const_method<Seq>::value, void>::type
+{
+    cnt.reserve(seq.size());
+};
+template<typename C, typename Seq>
+auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
+                                                                    std::is_base_of<typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category,
+                                                                                    std::random_access_iterator_tag>::value, void>::type
+{
+    cnt.reserve(std::distance(std::begin(seq), std::end(seq)));
+};
+template<typename C, typename Seq>
+auto try_reserve(C&, const Seq&) -> typename std::enable_if<!coveo::detail::has_size_const_method<typename std::decay<Seq>::type>::value &&
+                                                            !std::is_base_of<typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category,
+                                                                             std::random_access_iterator_tag>::value, void>::type
+{
+    // Can't reserve, no fast way of doing so
+};
+
+// Helper that returns a size_delegate for a sequence if it's possible to quickly calculate
+// its size (e.g. with random-access iterators or size())
+template<typename T, typename Seq>
+auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<coveo::detail::has_size_const_method<Seq>::value,
+                                                                      typename coveo::enumerable<T>::size_delegate>::type
+{
+    std::size_t size = seq.size();
+    return [size]() -> std::size_t { return size; };
+};
+template<typename T, typename Seq>
+auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
+                                                                      std::is_base_of<typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category,
+                                                                                      std::random_access_iterator_tag>::value,
+                                                                      typename coveo::enumerable<T>::size_delegate>::type
+{
+    std::size_t size = static_cast<std::size_t>(std::distance(std::begin(seq), std::end(seq)));
+    return [size]() -> std::size_t { return size; };
+};
+template<typename T, typename Seq>
+auto try_get_size_delegate(const Seq&) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
+                                                                  !std::is_base_of<typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category,
+                                                                                   std::random_access_iterator_tag>::value,
+                                                                  typename coveo::enumerable<T>::size_delegate>::type
+{
+    // No way to quickly determine size, don't try
+    return nullptr;
 };
 
 // Utility methods to throw LINQ-specific exceptions.
@@ -417,10 +465,25 @@ public:
 template<typename = void>
 class count_impl_0
 {
+private:
+    // Used if sequence has size() method
+    template<typename Seq,
+             typename = typename std::enable_if<coveo::detail::has_size_const_method<typename std::decay<Seq>::type>::value, void>::type>
+    auto impl(Seq&& seq) -> std::size_t {
+        return seq.size();
+    }
+
+    // Used otherwise (no choice but to use distance)
+    template<typename Seq,
+             typename _V = typename std::enable_if<!coveo::detail::has_size_const_method<typename std::decay<Seq>::type>::value, void*>::type>
+    auto impl(Seq&& seq, _V = nullptr) -> std::size_t {
+        return static_cast<std::size_t>(std::distance(std::begin(seq), std::end(seq)));
+    }
+
 public:
     template<typename Seq>
     auto operator()(Seq&& seq) -> std::size_t {
-        return static_cast<std::size_t>(std::distance(std::begin(seq), std::end(seq)));
+        return impl(std::forward<Seq>(seq));
     }
 };
 
@@ -591,7 +654,6 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        // #clp TODO optimize if sequence does not have duplicates already, like std::set?
         return next_impl<Seq>(std::forward<Seq>(seq), std::forward<Pred>(pred_));
     }
 };
@@ -603,13 +665,22 @@ class element_at_impl
 private:
     std::size_t n_;     // Index of element to fetch.
 
-public:
-    explicit element_at_impl(std::size_t n)
-        : n_(n) { }
-
+private:
+    // If we have random-access iterators, we can perform fast computations
     template<typename Seq>
-    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
-        // #clp TODO optimize for random-access iterators
+    auto impl(Seq&& seq, std::random_access_iterator_tag) -> decltype(*std::begin(seq)) {
+        auto icur = std::begin(seq);
+        auto iend = std::end(seq);
+        if (static_cast<std::size_t>(iend - icur) <= n_) {
+            throw_linq_out_of_range();
+        }
+        icur += n_;
+        return *icur;
+    }
+
+    // Otherwise, we can only move by hand
+    template<typename Seq>
+    auto impl(Seq&& seq, std::input_iterator_tag) -> decltype(*std::begin(seq)) {
         auto icur = std::begin(seq);
         auto iend = std::end(seq);
         for (std::size_t i = 0; i < n_ && icur != iend; ++i, ++icur) {
@@ -618,6 +689,16 @@ public:
             throw_linq_out_of_range();
         }
         return *icur;
+    }
+
+public:
+    explicit element_at_impl(std::size_t n)
+        : n_(n) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
+        return impl(std::forward<Seq>(seq),
+                    typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
     }
 };
 
@@ -628,19 +709,35 @@ class element_at_or_default_impl
 private:
     std::size_t n_;     // Index of element to fetch.
 
-public:
-    element_at_or_default_impl(std::size_t n)
-        : n_(n) { }
-
+private:
+    // If we have random-access iterators, we can perform fast computations
     template<typename Seq>
-    auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
-        // #clp TODO optimize for random-access iterators
+    auto impl(Seq&& seq, std::random_access_iterator_tag) -> typename seq_traits<Seq>::raw_value_type {
+        auto icur = std::begin(seq);
+        auto iend = std::end(seq);
+        return static_cast<std::size_t>(iend - icur) > n_ ? *(icur + n_)
+                                                          : typename seq_traits<Seq>::raw_value_type();
+    }
+
+    // Otherwise, we can only move by hand
+    template<typename Seq>
+    auto impl(Seq&& seq, std::input_iterator_tag) -> typename seq_traits<Seq>::raw_value_type {
         auto icur = std::begin(seq);
         auto iend = std::end(seq);
         for (std::size_t i = 0; i < n_ && icur != iend; ++i, ++icur) {
         }
         return icur != iend ? *icur
                             : typename seq_traits<Seq>::raw_value_type();
+    }
+
+public:
+    element_at_or_default_impl(std::size_t n)
+        : n_(n) { }
+
+    template<typename Seq>
+    auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
+        return impl(std::forward<Seq>(seq),
+                    typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
     }
 };
 
@@ -761,7 +858,6 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        // #clp TODO what if one or both sequences are already sorted?
         return next_impl<Seq1>(std::forward<Seq1>(seq1),
                                std::forward<Seq2>(seq2_),
                                std::forward<Pred>(pred_));
@@ -801,7 +897,6 @@ public:
         if (icur == iend) {
             throw_linq_empty_sequence();
         }
-        // #clp TODO what if sequence is sorted? Can we optimize?
         auto ifound = std::find_if(icur, iend, pred_);
         if (ifound == iend) {
             throw_linq_out_of_range();
@@ -1074,7 +1169,7 @@ public:
 
                     // Iterate outer sequence and build final results by matching the elements with
                     // the groups we built earlier.
-                    // #clp TODO reserve space in results_ if outer seq's iterators are random-access
+                    try_reserve(results_, outer_seq_);
                     auto iendki = keyed_inner_elems.end();
                     for (auto&& outer_elem : outer_seq_) {
                         key outer_key = outer_key_sel_(outer_elem);
@@ -1227,8 +1322,8 @@ public:
                 // Build vector of second sequence on the first call.
                 if (!init_flag_) {
                     // Add all elements from second sequence to a vector and sort it.
-                    // #clp TODO reserve if sequence has random-access iterators
-                    v_in_seq2_ = seq2_element_v(std::begin(seq2_), std::end(seq2_));
+                    try_reserve(v_in_seq2_, seq2_);
+                    v_in_seq2_.insert(v_in_seq2_.end(), std::begin(seq2_), std::end(seq2_));
                     std::sort(v_in_seq2_.begin(), v_in_seq2_.end(), pred_);
                     init_flag_ = true;
                 }
@@ -1301,7 +1396,6 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        // #clp TODO what if one or both sequences are already sorted?
         return next_impl<Seq1>(std::forward<Seq1>(seq1),
                                std::forward<Seq2>(seq2_),
                                std::forward<Pred>(pred_));
@@ -1377,7 +1471,7 @@ public:
 
                     // Iterate outer sequence and build final results by joining the elements with
                     // those in the groups we built earlier.
-                    // #clp TODO reserve space in results_ if sequences' iterators are random-access?
+                    try_reserve(results_, inner_seq_);
                     auto iendki = keyed_inner_elems.end();
                     for (auto&& outer_elem : outer_seq_) {
                         key outer_key = outer_key_sel_(outer_elem);
@@ -1499,7 +1593,7 @@ private:
 
     // Otherwise we'll have to be creative
     template<typename Seq>
-    auto impl(Seq&& seq, std::forward_iterator_tag) -> decltype(*std::begin(seq)) {
+    auto impl(Seq&& seq, std::input_iterator_tag) -> decltype(*std::begin(seq)) {
         auto icur = std::begin(seq);
         auto iend = std::end(seq);
         if (icur == iend) {
@@ -1517,7 +1611,7 @@ public:
     template<typename Seq>
     auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
         return impl(std::forward<Seq>(seq),
-            typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
+                    typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
     }
 };
 
@@ -1537,7 +1631,6 @@ private:
         if (ricur == riend) {
             throw_linq_empty_sequence();
         }
-        // #clp TODO what if sequence is sorted? Can we optimize?
         auto rifound = std::find_if(ricur, riend, pred_);
         if (rifound == riend) {
             throw_linq_out_of_range();
@@ -1547,7 +1640,7 @@ private:
 
     // Otherwise we'll have to be creative
     template<typename Seq>
-    auto impl(Seq&& seq, std::forward_iterator_tag) -> decltype(*std::begin(seq)) {
+    auto impl(Seq&& seq, std::input_iterator_tag) -> decltype(*std::begin(seq)) {
         auto icur = std::begin(seq);
         auto iend = std::end(seq);
         if (icur == iend) {
@@ -1573,7 +1666,7 @@ public:
     template<typename Seq>
     auto operator()(Seq&& seq) -> decltype(*std::begin(seq)) {
         return impl(std::forward<Seq>(seq),
-            typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
+                    typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
     }
 };
 
@@ -1591,7 +1684,7 @@ private:
 
     // Otherwise we'll have to be creative
     template<typename Seq>
-    auto impl(Seq&& seq, std::forward_iterator_tag) -> typename seq_traits<Seq>::raw_value_type {
+    auto impl(Seq&& seq, std::input_iterator_tag) -> typename seq_traits<Seq>::raw_value_type {
         auto icur = std::begin(seq);
         auto iend = std::end(seq);
         auto iprev = iend;
@@ -1606,7 +1699,7 @@ public:
     template<typename Seq>
     auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
         return impl(std::forward<Seq>(seq),
-            typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
+                    typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
     }
 };
 
@@ -1628,7 +1721,7 @@ private:
 
     // Otherwise we'll have to be creative
     template<typename Seq>
-    auto impl(Seq&& seq, std::forward_iterator_tag) -> typename seq_traits<Seq>::raw_value_type {
+    auto impl(Seq&& seq, std::input_iterator_tag) -> typename seq_traits<Seq>::raw_value_type {
         auto icur = std::begin(seq);
         auto iend = std::end(seq);
         auto ifound = iend;
@@ -1648,7 +1741,7 @@ public:
     template<typename Seq>
     auto operator()(Seq&& seq) -> typename seq_traits<Seq>::raw_value_type {
         return impl(std::forward<Seq>(seq),
-            typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
+                    typename std::iterator_traits<typename seq_traits<Seq>::iterator_type>::iterator_category());
     }
 };
 
@@ -1822,21 +1915,16 @@ private:
 
     // Called to initialize enum_ before using it.
     void init() {
-        auto spordered = std::make_shared<std::vector<typename seq_traits<Seq>::raw_value_type>>();
-        // #clp TODO reserve if Seq has random-access iterators
-        for (auto&& elem : seq_) {
-            spordered->push_back(elem);
-        }
-        auto it = spordered->begin();
-        auto end = spordered->end();
-        std::stable_sort(it, end, [this](typename seq_traits<Seq>::const_reference left,
-                                         typename seq_traits<Seq>::const_reference right) {
+        std::vector<typename seq_traits<Seq>::raw_value_type> ordered;
+        try_reserve(ordered, seq_);
+        ordered.insert(ordered.end(), std::begin(seq_), std::end(seq_));
+        std::stable_sort(ordered.begin(),
+                         ordered.end(),
+                         [this](typename seq_traits<Seq>::const_reference left,
+                                typename seq_traits<Seq>::const_reference right) {
             return (*upcmp_)(left, right) < 0;
         });
-        enum_ = coveo::enumerable<typename seq_traits<Seq>::raw_value_type>(
-            [spordered, it, end](std::unique_ptr<typename seq_traits<Seq>::raw_value_type>&) mutable {
-                return it != end ? std::addressof(*it++) : nullptr;
-            });
+        enum_ = coveo::enumerate_container(std::move(ordered));
         init_flag_ = true;
     }
 
@@ -1929,19 +2017,14 @@ private:
 
     // Otherwise we'll have to be creative
     template<typename Seq>
-    auto impl(Seq&& seq, std::forward_iterator_tag)
+    auto impl(Seq&& seq, std::input_iterator_tag)
         -> coveo::enumerable<typename seq_traits<Seq>::raw_value_type>
     {
-        auto spvpelems = std::make_shared<std::vector<typename seq_traits<Seq>::raw_value_type>>();
-        for (auto&& elem : seq) {
-            spvpelems->push_back(elem);
-        }
-        auto it = spvpelems->begin();
-        auto end = spvpelems->end();
-        std::reverse(it, end);
-        return [spvpelems, it, end](std::unique_ptr<typename seq_traits<Seq>::raw_value_type>&) mutable {
-            return it != end ? std::addressof(*it++) : nullptr;
-        };
+        std::vector<typename seq_traits<Seq>::raw_value_type> elems;
+        try_reserve(elems, std::forward<Seq>(seq));
+        elems.insert(elems.end(), std::begin(seq), std::end(seq));
+        std::reverse(elems.begin(), elems.end());
+        return coveo::enumerate_container(std::move(elems));
     }
 
 public:
@@ -2034,7 +2117,9 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        return next_impl<Seq, _SelectorRes, _U>(std::forward<Seq>(seq), std::forward<Selector>(sel_));
+        auto siz = try_get_size_delegate<_U>(seq);
+        return coveo::enumerable<_U>(next_impl<Seq, _SelectorRes, _U>(std::forward<Seq>(seq), std::forward<Selector>(sel_)),
+                                     siz);
     }
 };
 
@@ -2973,9 +3058,17 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        return next_impl<Seq1, _SelectorRes, _U>(std::forward<Seq1>(seq1),
-                                                 std::forward<Seq2>(seq2_),
-                                                 std::forward<ResultSelector>(result_sel_));
+        auto siz1 = try_get_size_delegate<typename seq_traits<Seq1>::raw_value_type>(seq1);
+        auto siz2 = try_get_size_delegate<typename seq_traits<Seq2>::raw_value_type>(seq2_);
+        typename coveo::enumerable<_U>::size_delegate siz;
+        if (siz1 != nullptr && siz2 != nullptr) {
+            std::size_t min_size = std::min(siz1(), siz2());
+            siz = [min_size]() -> std::size_t { return min_size; };
+        }
+        return coveo::enumerable<_U>(next_impl<Seq1, _SelectorRes, _U>(std::forward<Seq1>(seq1),
+                                                                       std::forward<Seq2>(seq2_),
+                                                                       std::forward<ResultSelector>(result_sel_)),
+                                     siz);
     }
 };
 

@@ -23,6 +23,7 @@ void validate_sequence(const coveo::enumerable<T>& seq, const C& expected, const
         COVEO_ASSERT(pr(obj, *eit++));
     }
     COVEO_ASSERT(eit == eend);
+    COVEO_ASSERT(seq.size() == expected.size());
 }
 template<typename T, typename C>
 void validate_sequence(const coveo::enumerable<T>& seq, const C& expected) {
@@ -163,7 +164,7 @@ void enumerable_tests()
     {
         detail::no_copy an_obj(42);
         bool avail = true;
-        auto seq = coveo::enumerable<detail::no_copy>([&](std::unique_ptr<detail::no_copy>&) {
+        auto seq = coveo::enumerable<detail::no_copy>([&an_obj, avail](std::unique_ptr<detail::no_copy>&) mutable {
             detail::no_copy* pobj = nullptr;
             if (avail) {
                 pobj = &an_obj;

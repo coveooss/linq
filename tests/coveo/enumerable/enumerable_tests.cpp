@@ -14,20 +14,17 @@ namespace enumerable {
 namespace detail {
 
 // Compares enumerable sequence with content of container
-template<typename T, typename C, typename Pr>
-void validate_sequence(const coveo::enumerable<T>& seq, const C& expected, const Pr& pr) {
+template<typename T, typename C>
+void validate_sequence(const coveo::enumerable<T>& seq, const C& expected, bool fast_size) {
     auto eit = std::begin(expected);
     auto eend = std::end(expected);
     for (auto&& obj : seq) {
         COVEO_ASSERT(eit != eend);
-        COVEO_ASSERT(pr(obj, *eit++));
+        COVEO_ASSERT(obj == *eit++);
     }
     COVEO_ASSERT(eit == eend);
+    COVEO_ASSERT(seq.has_fast_size() == fast_size);
     COVEO_ASSERT(seq.size() == expected.size());
-}
-template<typename T, typename C>
-void validate_sequence(const coveo::enumerable<T>& seq, const C& expected) {
-    validate_sequence(seq, expected, std::equal_to<T>());
 }
 
 // Simple struct that cannot be copied.
@@ -50,7 +47,7 @@ void enumerable_tests()
     {
         std::vector<int> vempty;
         auto empty_seq = coveo::enumerable<int>::empty();
-        detail::validate_sequence(empty_seq, vempty);
+        detail::validate_sequence(empty_seq, vempty, true);
     }
 
     // sequence defined by next delegate
@@ -64,19 +61,19 @@ void enumerable_tests()
                 return nullptr;
             }
         });
-        detail::validate_sequence(seq_i, vi);
+        detail::validate_sequence(seq_i, vi, false);
     }
 
     // sequence of one element
     {
         std::vector<int> vone = { 42 };
         auto seq_one = coveo::enumerable<int>::for_one(42);
-        detail::validate_sequence(seq_one, vone);
+        detail::validate_sequence(seq_one, vone, true);
     }
     {
         std::vector<int> vone = { 42 };
         auto seq_one = coveo::enumerate_one(42);
-        detail::validate_sequence(seq_one, vone);
+        detail::validate_sequence(seq_one, vone, true);
     }
     
     // sequence of one element held by ref
@@ -84,13 +81,13 @@ void enumerable_tests()
         const int hangar = 23;
         std::vector<int> vone = { 23 };
         auto seq_one_ref = coveo::enumerable<int>::for_one_ref(hangar);
-        detail::validate_sequence(seq_one_ref, vone);
+        detail::validate_sequence(seq_one_ref, vone, true);
     }
     {
         const int hangar = 23;
         std::vector<int> vone = { 23 };
         auto seq_one_ref = coveo::enumerate_one_ref(hangar);
-        detail::validate_sequence(seq_one_ref, vone);
+        detail::validate_sequence(seq_one_ref, vone, true);
     }
 
     // sequence bound by iterators
@@ -98,13 +95,13 @@ void enumerable_tests()
         std::vector<int> vforseq = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_range = coveo::enumerable<int>::for_range(vforseq.cbegin(), vforseq.cend());
-        detail::validate_sequence(seq_range, vexpected);
+        detail::validate_sequence(seq_range, vexpected, true);
     }
     {
         std::vector<int> vforseq = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_range = coveo::enumerate_range(vforseq.cbegin(), vforseq.cend());
-        detail::validate_sequence(seq_range, vexpected);
+        detail::validate_sequence(seq_range, vexpected, true);
     }
 
     // sequence stored in container (externally)
@@ -112,36 +109,36 @@ void enumerable_tests()
         std::vector<int> vcnt = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt = coveo::enumerable<int>(vcnt);
-        detail::validate_sequence(seq_cnt, vexpected);
+        detail::validate_sequence(seq_cnt, vexpected, true);
     }
     {
         std::vector<int> vcnt = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt = coveo::enumerable<int>::for_container(vcnt);
-        detail::validate_sequence(seq_cnt, vexpected);
+        detail::validate_sequence(seq_cnt, vexpected, true);
     }
     {
         std::vector<int> vcnt = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt = coveo::enumerate_container(vcnt);
-        detail::validate_sequence(seq_cnt, vexpected);
+        detail::validate_sequence(seq_cnt, vexpected, true);
     }
 
     // sequence stored in container (internally)
     {
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt_mv = coveo::enumerable<int>(std::vector<int> { 42, 23, 66 });
-        detail::validate_sequence(seq_cnt_mv, vexpected);
+        detail::validate_sequence(seq_cnt_mv, vexpected, true);
     }
     {
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt_mv = coveo::enumerable<int>::for_container(std::vector<int> { 42, 23, 66 });
-        detail::validate_sequence(seq_cnt_mv, vexpected);
+        detail::validate_sequence(seq_cnt_mv, vexpected, true);
     }
     {
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt_mv = coveo::enumerate_container(std::vector<int> { 42, 23, 66 });
-        detail::validate_sequence(seq_cnt_mv, vexpected);
+        detail::validate_sequence(seq_cnt_mv, vexpected, true);
     }
 
     // sequence in array
@@ -150,14 +147,14 @@ void enumerable_tests()
         const size_t arr_size = sizeof(arr) / sizeof(arr[0]);
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_arr = coveo::enumerable<int>::for_array(arr, arr_size);
-        detail::validate_sequence(seq_arr, vexpected);
+        detail::validate_sequence(seq_arr, vexpected, true);
     }
     {
         const int arr[] = { 42, 23, 66 };
         const size_t arr_size = sizeof(arr) / sizeof(arr[0]);
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_arr = coveo::enumerate_array(arr, arr_size);
-        detail::validate_sequence(seq_arr, vexpected);
+        detail::validate_sequence(seq_arr, vexpected, true);
     }
 
     // Objects that cannot be copied
@@ -174,7 +171,7 @@ void enumerable_tests()
         });
         std::list<detail::no_copy> lexpected;
         lexpected.emplace_back(42);
-        detail::validate_sequence(seq, lexpected);
+        detail::validate_sequence(seq, lexpected, false);
     }
 }
 

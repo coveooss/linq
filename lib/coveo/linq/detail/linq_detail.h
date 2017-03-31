@@ -408,7 +408,16 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        return next_impl<Seq1>(std::forward<Seq1>(seq1), std::forward<Seq2>(seq2_));
+        auto siz1 = try_get_size_delegate<typename seq_traits<Seq1>::raw_value_type>(seq1);
+        auto siz2 = try_get_size_delegate<typename seq_traits<Seq2>::raw_value_type>(seq2_);
+        typename coveo::enumerable<typename seq_traits<Seq1>::raw_value_type>::size_delegate siz;
+        if (siz1 != nullptr && siz2 != nullptr) {
+            std::size_t size = siz1() + siz2();
+            siz = [size]() -> std::size_t { return size; };
+        }
+        return coveo::enumerable<typename seq_traits<Seq1>::raw_value_type>(next_impl<Seq1>(std::forward<Seq1>(seq1),
+                                                                                            std::forward<Seq2>(seq2_)),
+                                                                            siz);
     }
 };
 
@@ -1911,9 +1920,10 @@ private:
     Seq seq_;                                                           // Sequence we're ordering.
     std::unique_ptr<Cmp> upcmp_;                                        // Comparator used to order a sequence.
     coveo::enumerable<typename seq_traits<Seq>::raw_value_type> enum_;  // Enumerator of ordered elements.
-    bool init_flag_;                                                    // Whether enum_ has been initialized.
+    std::size_t size_;                                                  // Number of elements in enum_.
+    bool init_flag_;                                                    // Whether enum_ and size_ have been initialized.
 
-    // Called to initialize enum_ before using it.
+    // Called to initialize enum_ and size_ before using them.
     void init() {
         std::vector<typename seq_traits<Seq>::raw_value_type> ordered;
         try_reserve(ordered, seq_);
@@ -1924,6 +1934,7 @@ private:
                                 typename seq_traits<Seq>::const_reference right) {
             return (*upcmp_)(left, right) < 0;
         });
+        size_ = ordered.size();
         enum_ = coveo::enumerate_container(std::move(ordered));
         init_flag_ = true;
     }
@@ -1954,6 +1965,17 @@ public:
             init();
         }
         return enum_.end();
+    }
+
+    // Support for sequence size (a bit like the enumerable API)
+    bool has_fast_size() const {
+        return true;
+    }
+    std::size_t size() {
+        if (!init_flag_) {
+            init();
+        }
+        return size_;
     }
 };
 

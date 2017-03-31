@@ -37,6 +37,7 @@ void linq_tests()
     {
         const auto v = { 42, 23, 66 };
         const std::vector<int> expected = { 42, 23, 66 };
+
         using namespace coveo::linq;
         auto seq = from(v);
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
@@ -47,6 +48,7 @@ void linq_tests()
     {
         const auto v = { 42, 23, 66 };
         const std::vector<int> expected = { 42, 23, 66 };
+
         using namespace coveo::linq;
         auto seq = from_range(std::begin(v), std::end(v));
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
@@ -56,6 +58,7 @@ void linq_tests()
     // from_int_range
     {
         const std::vector<int> expected = { 42, 43, 44, 45, 46, 47, 48 };
+
         using namespace coveo::linq;
         auto seq = from_int_range(42, 7);
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
@@ -65,6 +68,7 @@ void linq_tests()
     // from_repeated
     {
         const std::vector<int> expected = { 42, 42, 42, 42, 42, 42, 42 };
+
         using namespace coveo::linq;
         auto seq = from_repeated(42, 7);
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
@@ -74,6 +78,7 @@ void linq_tests()
     // aggregate
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         auto agg = from(v)
                  | aggregate([](int a, int b) { return a + b; });
@@ -81,12 +86,14 @@ void linq_tests()
     }
     {
         const std::vector<int> ev;
+
         using namespace coveo::linq;
         COVEO_ASSERT_THROW(from(ev)
                          | aggregate([](int a, int b) { return a + b; }));
     }
     {
         const char STR[] = "world!";
+
         using namespace coveo::linq;
         auto agg = from(coveo::enumerate_array(STR, 6))
                  | aggregate(std::string("Hello, "),
@@ -95,6 +102,7 @@ void linq_tests()
     }
     {
         const char NUMS[] = "31337";
+
         using namespace coveo::linq;
         auto agg = from(coveo::enumerate_array(NUMS, 5))
                  | aggregate(std::string(""),
@@ -111,6 +119,7 @@ void linq_tests()
     // all
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         COVEO_ASSERT(from(v) | all([](int i) { return i > 11; }));
         COVEO_ASSERT(!(from(v) | all([](int i) { return i % 2 == 0; })));
@@ -119,8 +128,10 @@ void linq_tests()
     // any
     {
         std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         COVEO_ASSERT(from(v) | any());
+
         v.clear();
         COVEO_ASSERT(!(from(v) | any()));
     }
@@ -128,16 +139,19 @@ void linq_tests()
     // average
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         auto avg_int = from(v)
                      | average([](int i) { return i; });
         COVEO_ASSERT(avg_int == 43);
+
         auto avg_dbl = from(v)
                      | average([](int i) { return double(i); });
         COVEO_ASSERT(avg_dbl >= 43.66 && avg_dbl < 43.67);
     }
     {
         const std::vector<int> ev;
+
         using namespace coveo::linq;
         COVEO_ASSERT_THROW(from(ev)
                          | average([](int i) { return i; }));
@@ -148,20 +162,24 @@ void linq_tests()
         const std::vector<int> a = { 42, 23 };
         const std::vector<int> b = { 66, 67 };
         const std::vector<int> ab = { 42, 23, 66, 67, 11, 7 };
+
         using namespace coveo::linq;
         auto all = from(a)
                  | concat(b)
                  | concat(std::vector<int>{ 11, 7 });
         COVEO_ASSERT(detail::equal(std::begin(all), std::end(all),
                                    std::begin(ab), std::end(ab)));
+        COVEO_ASSERT(all.has_fast_size());
         COVEO_ASSERT(all.size() == ab.size());
     }
 
     // contains
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         COVEO_ASSERT(from(v) | contains(23));
+
         auto eq_str_int = [](int i, const std::string& s) {
             std::ostringstream oss;
             oss << i;
@@ -173,6 +191,7 @@ void linq_tests()
     // count
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v) | count()) == 3);
         COVEO_ASSERT((from(v) | count([](int i) { return i % 2 == 0; })) == 2);
@@ -183,11 +202,13 @@ void linq_tests()
         const std::vector<int> v;
         const std::vector<int> v_def = { 0 };
         const std::vector<int> not_v = { 42 };
+
         using namespace coveo::linq;
         auto def = from(v)
                  | default_if_empty();
         COVEO_ASSERT(detail::equal(std::begin(def), std::end(def),
                                    std::begin(v_def), std::end(v_def)));
+
         auto def_n = from(v)
                    | default_if_empty(42);
         COVEO_ASSERT(detail::equal(std::begin(def_n), std::end(def_n),
@@ -198,20 +219,27 @@ void linq_tests()
     {
         const std::vector<int> v = { 42, 23, 66, 42, 67, 66, 23, 11 };
         const std::vector<int> v_no_dup = { 42, 23, 66, 67, 11 };
+
         using namespace coveo::linq;
         auto no_dup = from(v)
                     | distinct();
         COVEO_ASSERT(detail::equal(std::begin(no_dup), std::end(no_dup),
                                    std::begin(v_no_dup), std::end(v_no_dup)));
+        COVEO_ASSERT(!no_dup.has_fast_size());
+        COVEO_ASSERT(no_dup.size() == v_no_dup.size());
+
         auto no_dup_2 = from(v)
                       | distinct([](int i, int j) { return i > j; });
         COVEO_ASSERT(detail::equal(std::begin(no_dup_2), std::end(no_dup_2),
                                    std::begin(v_no_dup), std::end(v_no_dup)));
+        COVEO_ASSERT(!no_dup_2.has_fast_size());
+        COVEO_ASSERT(no_dup_2.size() == v_no_dup.size());
     }
 
     // element_at
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v) | element_at(1)) == 23);
         COVEO_ASSERT_THROW(from(v) | element_at(3));
@@ -220,6 +248,7 @@ void linq_tests()
     // element_at_or_default
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v) | element_at_or_default(1)) == 23);
         COVEO_ASSERT((from(v) | element_at_or_default(3)) == 0);
@@ -230,16 +259,20 @@ void linq_tests()
         const std::vector<int> v = { 42, 23, 66, 42, 23, 67, 11, 66, 7 };
         const std::vector<int> not_v = { 66, 23, 11 };
         const std::vector<int> res = { 42, 42, 67, 7 };
+
         using namespace coveo::linq;
         auto lres = from(v)
                   | except(not_v);
         COVEO_ASSERT(detail::equal(std::begin(lres), std::end(lres),
                                    std::begin(res), std::end(res)));
+        COVEO_ASSERT(!lres.has_fast_size());
+        COVEO_ASSERT(lres.size() == res.size());
     }
 
     // first
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v)
                     | first()) == 42);
@@ -251,6 +284,7 @@ void linq_tests()
     {
         const std::vector<int> v = { 42, 23, 66 };
         const std::vector<int> e;
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v)
                     | first_or_default()) == 42);
@@ -268,6 +302,7 @@ void linq_tests()
         const std::vector<int> v = { 42, 23, 66, 11, 7 };
         const std::vector<int> odd_group = { 23, 11, 7 };
         const std::vector<int> even_group = { 42, 66 };
+
         using namespace coveo::linq;
         auto groups = from(v)
                     | group_by([](int i) { return i % 2 == 0 ? oddity::even : oddity::odd; });
@@ -284,12 +319,15 @@ void linq_tests()
                                    std::begin(even_group), std::end(even_group)));
         ++icurg;
         COVEO_ASSERT(icurg == iendg);
+        COVEO_ASSERT(!groups.has_fast_size());
+        COVEO_ASSERT(groups.size() == 2);
     }
     {
         enum class oddity { odd = 1, even = 2 };
         const std::vector<int> v = { 42, 23, 66, 11, 7 };
         const std::vector<int> odd_group = { 23, 11, 7 };
         const std::vector<int> even_group = { 42, 66 };
+
         using namespace coveo::linq;
         auto groups = from(v)
                     | group_by([](int i) { return i % 2 == 0 ? oddity::even : oddity::odd; },
@@ -307,12 +345,15 @@ void linq_tests()
                                    std::begin(odd_group), std::end(odd_group)));
         ++icurg;
         COVEO_ASSERT(icurg == iendg);
+        COVEO_ASSERT(!groups.has_fast_size());
+        COVEO_ASSERT(groups.size() == 2);
     }
     {
         enum class oddity { odd = 1, even = 2 };
         const std::vector<int> v = { 42, 23, 66, 11, 7 };
         const std::vector<int> odd_group = { 230, 110, 70 };
         const std::vector<int> even_group = { 420, 660 };
+
         using namespace coveo::linq;
         auto groups = from(v)
                     | group_values_by([](int i) { return i % 2 == 0 ? oddity::even : oddity::odd; },
@@ -330,12 +371,15 @@ void linq_tests()
                                    std::begin(even_group), std::end(even_group)));
         ++icurg;
         COVEO_ASSERT(icurg == iendg);
+        COVEO_ASSERT(!groups.has_fast_size());
+        COVEO_ASSERT(groups.size() == 2);
     }
     {
         enum class oddity { odd = 1, even = 2 };
         const std::vector<int> v = { 42, 23, 66, 11, 7 };
         const std::vector<int> odd_group = { 230, 110, 70 };
         const std::vector<int> even_group = { 420, 660 };
+
         using namespace coveo::linq;
         auto groups = from(v)
                     | group_values_by([](int i) { return i % 2 == 0 ? oddity::even : oddity::odd; },
@@ -354,6 +398,8 @@ void linq_tests()
                                    std::begin(odd_group), std::end(odd_group)));
         ++icurg;
         COVEO_ASSERT(icurg == iendg);
+        COVEO_ASSERT(!groups.has_fast_size());
+        COVEO_ASSERT(groups.size() == 2);
     }
 #if 0
     {
@@ -366,6 +412,8 @@ void linq_tests()
                                      [](oddity, auto nums) { return std::distance(std::begin(nums), std::end(nums)); });
         COVEO_ASSERT(std::equal(std::begin(res), std::end(res),
                                 std::begin(size_by_oddity_v), std::end(size_by_oddity_v)));
+        COVEO_ASSERT(!res.has_fast_size());
+        COVEO_ASSERT(res.size() == size_by_oddity_v.size());
     }
     {
         enum class oddity { odd = 1, even = 2 };
@@ -378,6 +426,8 @@ void linq_tests()
                                      std::greater<>());
         COVEO_ASSERT(std::equal(std::begin(res), std::end(res),
                                 std::begin(size_by_oddity_v), std::end(size_by_oddity_v)));
+        COVEO_ASSERT(!res.has_fast_size());
+        COVEO_ASSERT(res.size() == size_by_oddity_v.size());
     }
     {
         enum class oddity { odd = 1, even = 2 };
@@ -392,6 +442,8 @@ void linq_tests()
                                             });
         COVEO_ASSERT(std::equal(std::begin(res), std::end(res),
                                 std::begin(somewhat_size_by_oddity_v), std::end(somewhat_size_by_oddity_v)));
+        COVEO_ASSERT(!res.has_fast_size());
+        COVEO_ASSERT(res.size() == somewhat_size_by_oddity_v.size());
     }
     {
         enum class oddity { odd = 1, even = 2 };
@@ -407,6 +459,8 @@ void linq_tests()
                                             std::greater<>());
         COVEO_ASSERT(std::equal(std::begin(res), std::end(res),
                                 std::begin(somewhat_size_by_oddity_v), std::end(somewhat_size_by_oddity_v)));
+        COVEO_ASSERT(!res.has_fast_size());
+        COVEO_ASSERT(res.size() == somewhat_size_by_oddity_v.size());
     }
 #endif
 
@@ -424,6 +478,7 @@ void linq_tests()
             std::make_tuple(66, std::ref(in_even_v)),
         };
         auto get_oddity = [](int i) { return i % 2 == 0 ? oddity::even : oddity::odd; };
+
         using namespace coveo::linq;
         auto res = from(out_v)
                  | group_join(in_v, get_oddity, get_oddity,
@@ -440,6 +495,8 @@ void linq_tests()
                                     std::begin(exp_seq), std::end(exp_seq)));
             ++icurex;
         }
+        COVEO_ASSERT(!res.has_fast_size());
+        COVEO_ASSERT(res.size() == expected.size());
     }
     {
         enum class oddity { odd = 1, even = 2 };
@@ -453,6 +510,7 @@ void linq_tests()
             std::make_tuple(66, std::ref(in_even_v)),
         };
         auto get_oddity = [](int i) { return i % 2 == 0 ? oddity::even : oddity::odd; };
+
         using namespace coveo::linq;
         auto res = from(out_v)
                  | group_join(in_v, get_oddity, get_oddity,
@@ -470,6 +528,8 @@ void linq_tests()
                                     std::begin(exp_seq), std::end(exp_seq)));
             ++icurex;
         }
+        COVEO_ASSERT(!res.has_fast_size());
+        COVEO_ASSERT(res.size() == expected.size());
     }
 #endif
 
@@ -478,21 +538,27 @@ void linq_tests()
         const std::vector<int> v1 = { 42, 23, 66, 11 };
         const std::vector<int> v2 = { 11, 7, 67, 42, 22 };
         const std::vector<int> expected = { 42, 11 };
+
         using namespace coveo::linq;
         auto intersection = from(v1)
                           | intersect(v2);
         COVEO_ASSERT(detail::equal(std::begin(intersection), std::end(intersection),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(!intersection.has_fast_size());
+        COVEO_ASSERT(intersection.size() == expected.size());
     }
     {
         const std::vector<int> v1 = { 42, 23, 66, 11 };
         const std::vector<int> v2 = { 11, 7, 67, 42, 22 };
         const std::vector<int> expected = { 42, 11 };
+
         using namespace coveo::linq;
         auto intersection = from(v1)
                           | intersect(v2, coveo::linq::detail::greater<>());
         COVEO_ASSERT(detail::equal(std::begin(intersection), std::end(intersection),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(!intersection.has_fast_size());
+        COVEO_ASSERT(intersection.size() == expected.size());
     }
 
     // join
@@ -506,6 +572,7 @@ void linq_tests()
             std::make_tuple(66, 6), std::make_tuple(66, 66), std::make_tuple(66, 22),
         };
         auto get_oddity = [](int i) { return i % 2 == 0 ? oddity::even : oddity::odd; };
+
         using namespace coveo::linq;
         auto res = from(out_v)
                  | join(in_v, get_oddity, get_oddity,
@@ -516,6 +583,8 @@ void linq_tests()
             COVEO_ASSERT(r == *icurex);
             ++icurex;
         }
+        COVEO_ASSERT(!res.has_fast_size());
+        COVEO_ASSERT(res.size() == expected.size());
     }
     {
         enum class oddity { odd = 1, even = 2 };
@@ -527,6 +596,7 @@ void linq_tests()
             std::make_tuple(66, 6), std::make_tuple(66, 66), std::make_tuple(66, 22),
         };
         auto get_oddity = [](int i) { return i % 2 == 0 ? oddity::even : oddity::odd; };
+
         using namespace coveo::linq;
         auto res = from(out_v)
                  | join(in_v, get_oddity, get_oddity,
@@ -538,11 +608,14 @@ void linq_tests()
             COVEO_ASSERT(r == *icurex);
             ++icurex;
         }
+        COVEO_ASSERT(!res.has_fast_size());
+        COVEO_ASSERT(res.size() == expected.size());
     }
 
     // last
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v)
                     | last()) == 24);
@@ -551,6 +624,7 @@ void linq_tests()
     }
     {
         const std::forward_list<int> v = { 42, 23, 66, 11, 24 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v)
                     | last()) == 24);
@@ -562,6 +636,7 @@ void linq_tests()
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> e;
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v)
                     | last_or_default()) == 24);
@@ -575,6 +650,7 @@ void linq_tests()
     {
         const std::forward_list<int> v = { 42, 23, 66, 11, 24 };
         const std::forward_list<int> e;
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v)
                     | last_or_default()) == 24);
@@ -589,6 +665,7 @@ void linq_tests()
     // max
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v) | max()) == 66);
         COVEO_ASSERT((from(v) | max([](int i) { return -i; })) == -11);
@@ -597,6 +674,7 @@ void linq_tests()
     // min
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(v) | min()) == 11);
         COVEO_ASSERT((from(v) | min([](int i) { return -i; })) == -66);
@@ -606,82 +684,106 @@ void linq_tests()
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> expected = { 11, 23, 24, 42, 66 };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | order_by([](int i) { return i; });
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> expected = { 66, 42, 24, 23, 11 };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | order_by([](int i) { return i; }, std::greater<int>());
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> expected = { 66, 42, 24, 23, 11 };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | order_by_descending([](int i) { return i; });
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> expected = { 11, 23, 24, 42, 66 };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | order_by_descending([](int i) { return i; }, std::greater<int>());
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::vector<std::string> v = { "grape", "passionfruit", "banana", "mango",
                                              "orange", "raspberry", "apple", "blueberry" };
         const std::vector<std::string> expected = { "apple", "grape", "mango", "banana", "orange",
                                                     "blueberry", "raspberry", "passionfruit" };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | order_by([](const std::string& a) { return a.size(); })
                  | then_by([](const std::string& a) { return a; });
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::vector<std::string> v = { "grape", "passionfruit", "banana", "mango",
                                              "orange", "raspberry", "apple", "blueberry" };
         const std::vector<std::string> expected = { "passionfruit", "raspberry", "blueberry",
                                                     "orange", "banana", "mango", "grape", "apple" };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | order_by_descending([](const std::string& a) { return a.size(); })
                  | then_by_descending([](const std::string& a) { return a; });
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
 
     // reverse
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> expected = { 24, 11, 66, 23, 42 };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | reverse();
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::forward_list<int> v = { 42, 23, 66, 11, 24 };
         const std::forward_list<int> expected = { 24, 11, 66, 23, 42 };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | reverse();
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == 5);
     }
 
     // select/select_with_index/select_many/select_many_with_index
@@ -696,12 +798,15 @@ void linq_tests()
         auto our_dblstr = [](const std::string& s) -> std::string {
             return s + s;
         };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | select(our_itoa)
                  | select(our_dblstr);
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66 };
@@ -718,12 +823,15 @@ void linq_tests()
             }
             return r;
         };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | select_with_index(our_itoa)
                  | select_with_index(our_mulstr);
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66 };
@@ -737,11 +845,14 @@ void linq_tests()
             std::reverse(ov.back().begin(), ov.back().end());
             return coveo::enumerate_container(std::move(ov));
         };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | select_many(our_itoa);
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(!seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66 };
@@ -755,17 +866,21 @@ void linq_tests()
             std::reverse(ov.back().begin(), ov.back().end());
             return coveo::enumerate_container(std::move(ov));
         };
+
         using namespace coveo::linq;
         auto seq = from(v)
                  | select_many_with_index(our_itoa);
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(!seq.has_fast_size());
+        COVEO_ASSERT(seq.size() == expected.size());
     }
 
     // sequence_equal
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::forward_list<int> expected = { 42, 23, 66, 11, 24 };
+
         using namespace coveo::linq;
         COVEO_ASSERT(from(v) | sequence_equal(expected));
     }
@@ -775,6 +890,7 @@ void linq_tests()
         auto fuzzy_equal = [](int i, int j) {
             return std::abs(i) == std::abs(j);
         };
+
         using namespace coveo::linq;
         COVEO_ASSERT(from(v) | sequence_equal(expected, fuzzy_equal));
     }
@@ -784,6 +900,7 @@ void linq_tests()
         const std::vector<int> zero_v;
         const std::vector<int> one_v = { 42 };
         const std::vector<int> two_v = { 42, 23 };
+
         using namespace coveo::linq;
         COVEO_ASSERT_THROW(from(zero_v) | single());
         COVEO_ASSERT((from(one_v) | single()) == 42);
@@ -795,6 +912,7 @@ void linq_tests()
         const std::vector<int> one_42_v = { 42, 23, 66, 11 };
         const std::vector<int> two_42_v = { 42, 23, 66, 42, 11 };
         auto equal_to_42 = std::bind(std::equal_to<int>(), std::placeholders::_1, 42);
+
         using namespace coveo::linq;
         COVEO_ASSERT_THROW(from(zero_v) | single(equal_to_42));
         COVEO_ASSERT_THROW(from(no_42_v) | single(equal_to_42));
@@ -807,6 +925,7 @@ void linq_tests()
         const std::vector<int> zero_v;
         const std::vector<int> one_v = { 42 };
         const std::vector<int> two_v = { 42, 23 };
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(zero_v) | single_or_default()) == 0);
         COVEO_ASSERT((from(one_v) | single_or_default()) == 42);
@@ -818,6 +937,7 @@ void linq_tests()
         const std::vector<int> one_42_v = { 42, 23, 66, 11 };
         const std::vector<int> two_42_v = { 42, 23, 66, 42, 11 };
         auto equal_to_42 = std::bind(std::equal_to<int>(), std::placeholders::_1, 42);
+
         using namespace coveo::linq;
         COVEO_ASSERT((from(zero_v) | single_or_default(equal_to_42)) == 0);
         COVEO_ASSERT((from(no_42_v) | single_or_default(equal_to_42)) == 0);
@@ -830,6 +950,7 @@ void linq_tests()
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> last_two = { 11, 24 };
         const std::vector<int> none;
+
         using namespace coveo::linq;
         auto e_skip_3 = from(v)
                       | skip(3);
@@ -839,6 +960,10 @@ void linq_tests()
                                    std::begin(last_two), std::end(last_two)));
         COVEO_ASSERT(detail::equal(std::begin(e_skip_9), std::end(e_skip_9),
                                    std::begin(none), std::end(none)));
+        COVEO_ASSERT(!e_skip_3.has_fast_size());
+        COVEO_ASSERT(!e_skip_9.has_fast_size());
+        COVEO_ASSERT(e_skip_3.size() == last_two.size());
+        COVEO_ASSERT(e_skip_9.size() == none.size());
     }
 
     // skip_while/skip_while_with_index
@@ -846,6 +971,7 @@ void linq_tests()
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> v_66_and_up = { 66, 11, 24 };
         const std::vector<int> none;
+
         using namespace coveo::linq;
         auto e_after_60 = from(v)
                         | skip_while([](int i) { return i < 60; });
@@ -855,11 +981,16 @@ void linq_tests()
                                    std::begin(v_66_and_up), std::end(v_66_and_up)));
         COVEO_ASSERT(detail::equal(std::begin(e_after_90), std::end(e_after_90),
                                    std::begin(none), std::end(none)));
+        COVEO_ASSERT(!e_after_60.has_fast_size());
+        COVEO_ASSERT(!e_after_90.has_fast_size());
+        COVEO_ASSERT(e_after_60.size() == v_66_and_up.size());
+        COVEO_ASSERT(e_after_90.size() == none.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> v_66_and_up = { 66, 11, 24 };
         const std::vector<int> v_24_and_up = { 24 };
+
         using namespace coveo::linq;
         auto e_after_60 = from(v)
                         | skip_while_with_index([](int i, std::size_t n) { return i < 60 && n < 4; });
@@ -869,21 +1000,28 @@ void linq_tests()
                                    std::begin(v_66_and_up), std::end(v_66_and_up)));
         COVEO_ASSERT(detail::equal(std::begin(e_after_90), std::end(e_after_90),
                                    std::begin(v_24_and_up), std::end(v_24_and_up)));
+        COVEO_ASSERT(!e_after_60.has_fast_size());
+        COVEO_ASSERT(!e_after_90.has_fast_size());
+        COVEO_ASSERT(e_after_60.size() == v_66_and_up.size());
+        COVEO_ASSERT(e_after_90.size() == v_24_and_up.size());
     }
 
     // sum
     {
         const std::vector<int> v = { 42, 23, 66 };
+
         using namespace coveo::linq;
         auto sum_int = from(v)
                      | sum([](int i) { return i; });
         COVEO_ASSERT(sum_int == 131);
+
         auto sum_dbl = from(v)
                      | sum([](int i) { return double(i); });
         COVEO_ASSERT(sum_dbl >= 131.0 && sum_dbl < 131.01);
     }
     {
         const std::vector<int> ev;
+
         using namespace coveo::linq;
         COVEO_ASSERT_THROW(from(ev)
                          | sum([](int i) { return i; }));
@@ -894,6 +1032,7 @@ void linq_tests()
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> first_three = { 42, 23, 66 };
         const std::vector<int> none;
+
         using namespace coveo::linq;
         auto e_take_3 = from(v)
                       | take(3);
@@ -903,12 +1042,17 @@ void linq_tests()
                                    std::begin(first_three), std::end(first_three)));
         COVEO_ASSERT(detail::equal(std::begin(e_take_0), std::end(e_take_0),
                                    std::begin(none), std::end(none)));
+        COVEO_ASSERT(!e_take_3.has_fast_size());
+        COVEO_ASSERT(!e_take_0.has_fast_size());
+        COVEO_ASSERT(e_take_3.size() == first_three.size());
+        COVEO_ASSERT(e_take_0.size() == none.size());
     }
 
     // take_while/take_while_with_index
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> v_before_66 = { 42, 23 };
+
         using namespace coveo::linq;
         auto e_before_60 = from(v)
                         | take_while([](int i) { return i < 60; });
@@ -918,11 +1062,16 @@ void linq_tests()
                                    std::begin(v_before_66), std::end(v_before_66)));
         COVEO_ASSERT(detail::equal(std::begin(e_before_90), std::end(e_before_90),
                                    std::begin(v), std::end(v)));
+        COVEO_ASSERT(!e_before_60.has_fast_size());
+        COVEO_ASSERT(!e_before_90.has_fast_size());
+        COVEO_ASSERT(e_before_60.size() == v_before_66.size());
+        COVEO_ASSERT(e_before_90.size() == v.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> v_before_66 = { 42, 23 };
         const std::vector<int> v_before_5th = { 42, 23, 66, 11 };
+
         using namespace coveo::linq;
         auto e_before_60 = from(v)
                         | take_while_with_index([](int i, std::size_t n) { return i < 60 && n < 4; });
@@ -932,12 +1081,17 @@ void linq_tests()
                                    std::begin(v_before_66), std::end(v_before_66)));
         COVEO_ASSERT(detail::equal(std::begin(e_before_90), std::end(e_before_90),
                                    std::begin(v_before_5th), std::end(v_before_5th)));
+        COVEO_ASSERT(!e_before_60.has_fast_size());
+        COVEO_ASSERT(!e_before_90.has_fast_size());
+        COVEO_ASSERT(e_before_60.size() == v_before_66.size());
+        COVEO_ASSERT(e_before_90.size() == v_before_5th.size());
     }
 
     // to/to_vector/to_associative/to_map
     {
         const std::vector<int> v = { 42, 23, 66, 11, 24 };
         const std::forward_list<int> fl = { 42, 23, 66, 11, 24 };
+
         using namespace coveo::linq;
         auto linq_fl = from(v)
                      | to<std::forward_list<int>>();
@@ -945,6 +1099,7 @@ void linq_tests()
     }
     {
         const std::forward_list<int> fl = { 42, 23, 66, 11, 24 };
+
         using namespace coveo::linq;
         auto linq_v = from(fl)
                     | to_vector();
@@ -954,6 +1109,7 @@ void linq_tests()
     {
         const std::vector<std::pair<int, std::string>> v = { { 42, "Life" }, { 23, "Hangar" } };
         auto pair_first = [](std::pair<int, std::string> p) { return p.first; };
+
         using namespace coveo::linq;
         auto linq_m = from(v)
                     | to_associative<std::map<int, std::pair<int, std::string>>>(pair_first);
@@ -971,6 +1127,7 @@ void linq_tests()
         const std::vector<std::pair<int, std::string>> v = { { 42, "Life" }, { 23, "Hangar" } };
         auto pair_first = [](std::pair<int, std::string> p) { return p.first; };
         auto pair_second = [](std::pair<int, std::string> p) { return p.second; };
+
         using namespace coveo::linq;
         auto linq_m = from(v)
                     | to_associative<std::map<int, std::string>>(pair_first, pair_second);
@@ -985,6 +1142,7 @@ void linq_tests()
     {
         const std::vector<std::pair<int, std::string>> v = { { 42, "Life" }, { 23, "Hangar" } };
         auto pair_first = [](std::pair<int, std::string> p) { return p.first; };
+
         using namespace coveo::linq;
         auto linq_m = from(v)
                     | to_map(pair_first);
@@ -1002,6 +1160,7 @@ void linq_tests()
         const std::vector<std::pair<int, std::string>> v = { { 42, "Life" }, { 23, "Hangar" } };
         auto pair_first = [](std::pair<int, std::string> p) { return p.first; };
         auto pair_second = [](std::pair<int, std::string> p) { return p.second; };
+
         using namespace coveo::linq;
         auto linq_m = from(v)
                     | to_map(pair_first, pair_second);
@@ -1019,15 +1178,21 @@ void linq_tests()
         const std::vector<int> v1 = { 42, 23, 66, 42, 67, 66, 23, 11 };
         const std::vector<int> v2 = { 11, 7, 67, 24, 44, 42, 44 };
         const std::vector<int> v_union = { 42, 23, 66, 67, 11, 7, 24, 44 };
+
         using namespace coveo::linq;
         auto union1 = from(v1)
                     | union_with(v2);
         COVEO_ASSERT(detail::equal(std::begin(union1), std::end(union1),
                                    std::begin(v_union), std::end(v_union)));
+        COVEO_ASSERT(!union1.has_fast_size());
+        COVEO_ASSERT(union1.size() == v_union.size());
+
         auto union2 = from(v1)
                     | union_with(v2, [](int i, int j) { return i > j; });
         COVEO_ASSERT(detail::equal(std::begin(union2), std::end(union2),
                                    std::begin(v_union), std::end(v_union)));
+        COVEO_ASSERT(!union2.has_fast_size());
+        COVEO_ASSERT(union2.size() == v_union.size());
     }
 
     // where/where_with_index
@@ -1037,25 +1202,34 @@ void linq_tests()
         const std::vector<int> expected_div_3 = { 42, 66, 24 };
         auto is_odd = [](int i) { return i % 2 != 0; };
         auto is_div_3 = [](int i) { return i % 3 == 0; };
+
         using namespace coveo::linq;
         auto e1 = from(v)
                 | where(is_odd);
         COVEO_ASSERT(detail::equal(std::begin(e1), std::end(e1),
                                    std::begin(expected_odd), std::end(expected_odd)));
+        COVEO_ASSERT(!e1.has_fast_size());
+        COVEO_ASSERT(e1.size() == expected_odd.size());
+
         auto e2 = from(v)
                 | where(is_div_3);
         COVEO_ASSERT(detail::equal(std::begin(e2), std::end(e2),
                                    std::begin(expected_div_3), std::end(expected_div_3)));
+        COVEO_ASSERT(!e2.has_fast_size());
+        COVEO_ASSERT(e2.size() == expected_div_3.size());
     }
     {
         const std::vector<int> v = { 42, 23, 66, 11, 7, 24 };
         const std::vector<int> expected_odd_idx = { 23, 11, 24 };
         auto is_odd_idx = [](int, std::size_t idx) { return idx % 2 != 0; };
+
         using namespace coveo::linq;
         auto e = from(v)
                | where_with_index(is_odd_idx);
         COVEO_ASSERT(detail::equal(std::begin(e), std::end(e),
                                    std::begin(expected_odd_idx), std::end(expected_odd_idx)));
+        COVEO_ASSERT(!e.has_fast_size());
+        COVEO_ASSERT(e.size() == expected_odd_idx.size());
     }
 
     // zip
@@ -1064,11 +1238,14 @@ void linq_tests()
         const std::vector<int> v2 = { 11, 7, 24, 67 };
         const std::vector<int> expected = { 53, 30, 90 };
         auto add = [](int i, int j) { return i + j; };
+
         using namespace coveo::linq;
         auto zipped = from(v1)
                     | zip(v2, add);
         COVEO_ASSERT(detail::equal(std::begin(zipped), std::end(zipped),
                                    std::begin(expected), std::end(expected)));
+        COVEO_ASSERT(zipped.has_fast_size());
+        COVEO_ASSERT(zipped.size() == expected.size());
     }
 }
 

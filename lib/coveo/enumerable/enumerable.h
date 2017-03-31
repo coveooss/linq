@@ -89,6 +89,10 @@ public:
     }
 
     // Access to size of sequence
+    bool has_fast_size() const {
+        // If we have a delegate, size() should be reasonably fast
+        return size_ != nullptr;
+    }
     std::size_t size() const {
         // If we have a delegate, use it, otherwise use distance.
         return size_ != nullptr ? size_()

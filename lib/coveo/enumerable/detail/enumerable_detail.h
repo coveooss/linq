@@ -10,6 +10,10 @@
 #include <type_traits>
 
 namespace coveo {
+
+// Forward declaration of enumerable, for type traits
+template<typename> class enumerable;
+
 namespace detail {
 
 // Traits class used by coveo::enumerable. Provides information about types in a sequence.
@@ -32,6 +36,10 @@ struct seq_element_traits
 template<typename T> struct seq_element_traits<T&> : seq_element_traits<T> { };
 template<typename T> struct seq_element_traits<T&&> : seq_element_traits<T> { };
 template<typename T> struct seq_element_traits<std::reference_wrapper<T>> : seq_element_traits<T> { };
+
+// Traits class used to identify enumerable objects.
+template<typename> struct is_enumerable : std::false_type { };
+template<typename T> struct is_enumerable<coveo::enumerable<T>> : std::true_type { };
 
 // Type trait that can be used to know if std::begin(const T) is valid.
 // Detects both std::begin specialization and begin const methods.

@@ -120,7 +120,15 @@ std::unique_ptr<T> make_unique(Args&&... args) {
 // Helper that reserves space in a container based on the number of elements in a sequence
 // If it's possible to do so quickly (e.g. with random-access iterators or size())
 template<typename C, typename Seq>
-auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<coveo::detail::has_size_const_method<Seq>::value, void>::type
+auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<coveo::detail::is_enumerable<Seq>::value, void>::type
+{
+    if (seq.has_fast_size()) {
+        cnt.reserve(seq.size());
+    }
+};
+template<typename C, typename Seq>
+auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<!coveo::detail::is_enumerable<Seq>::value &&
+                                                                    coveo::detail::has_size_const_method<Seq>::value, void>::type
 {
     cnt.reserve(seq.size());
 };
@@ -142,7 +150,19 @@ auto try_reserve(C&, const Seq&) -> typename std::enable_if<!coveo::detail::has_
 // Helper that returns a size_delegate for a sequence if it's possible to quickly calculate
 // its size (e.g. with random-access iterators or size())
 template<typename T, typename Seq>
-auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<coveo::detail::has_size_const_method<Seq>::value,
+auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<coveo::detail::is_enumerable<Seq>::value,
+                                                                      typename coveo::enumerable<T>::size_delegate>::type
+{
+    typename coveo::enumerable<T>::size_delegate siz;
+    if (seq.has_fast_size()) {
+        std::size_t size = seq.size();
+        siz = [size]() -> std::size_t { return size; };
+    }
+    return siz;
+}
+template<typename T, typename Seq>
+auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<!coveo::detail::is_enumerable<Seq>::value &&
+                                                                      coveo::detail::has_size_const_method<Seq>::value,
                                                                       typename coveo::enumerable<T>::size_delegate>::type
 {
     std::size_t size = seq.size();

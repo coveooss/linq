@@ -43,11 +43,6 @@ private:
     next_delegate zero_;    // Next delegate which we will clone to iterate sequence.
     size_delegate size_;    // Optional size delegate.
 
-private:
-    // Trait to identify enumerable objects
-    template<typename _T> struct is_enumerable : std::false_type { };
-    template<typename _T> struct is_enumerable<enumerable<_T>> : std::true_type { };
-
 public:
     // Default constructor over empty sequence
     enumerable()
@@ -57,7 +52,7 @@ public:
     // Constructor with next delegate and optional size delegate
     template<typename F,
              typename _S = std::nullptr_t,
-             typename = typename std::enable_if<!is_enumerable<typename std::decay<F>::type>::value &&
+             typename = typename std::enable_if<!detail::is_enumerable<typename std::decay<F>::type>::value &&
                                                 (!detail::has_begin<typename std::decay<F>::type>::value ||
                                                  !detail::has_end<typename std::decay<F>::type>::value ||
                                                  !detail::has_size_const_method<typename std::decay<F>::type>::value), void>::type>
@@ -66,7 +61,7 @@ public:
 
     // Constructor with container
     template<typename C,
-             typename = typename std::enable_if<!is_enumerable<typename std::decay<C>::type>::value &&
+             typename = typename std::enable_if<!detail::is_enumerable<typename std::decay<C>::type>::value &&
                                                 detail::has_begin<typename std::decay<C>::type>::value &&
                                                 detail::has_end<typename std::decay<C>::type>::value &&
                                                 detail::has_size_const_method<typename std::decay<C>::type>::value, void>::type>

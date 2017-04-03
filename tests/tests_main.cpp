@@ -10,8 +10,15 @@
 // Test program entry point.
 int main()
 {
+    int ret = 0;
+
+#ifndef COVEO_LINQ_BENCHMARKS
     std::cout << "Running tests..." << std::endl;
-    int ret = coveo_tests::run_tests(&coveo_tests::linq::all_tests);
+    ret = coveo_tests::run_tests(&coveo_tests::linq::all_tests);
+#else
+    std::cout << "Running benchmarks..." << std::endl;
+    ret = coveo_tests::run_tests(&coveo_tests::linq::all_benchmarks);
+#endif
     std::cout << "Done." << std::endl;
 
     if (ret != 0) {

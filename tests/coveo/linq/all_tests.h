@@ -8,6 +8,7 @@ namespace coveo_tests {
 namespace linq {
 
 void all_tests();
+void all_benchmarks();
 
 } // linq
 } // coveo_tests

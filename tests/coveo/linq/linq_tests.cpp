@@ -8,12 +8,14 @@
 #include <coveo/test_framework.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdlib>
 #include <cstdint>
 #include <forward_list>
 #include <functional>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <vector>
 
@@ -1353,6 +1355,55 @@ void chaining_tests()
         std::cout << std::endl;
     }
 #endif
+}
+
+// Runs all benchmarks for coveo::linq operators
+void linq_benchmarks()
+{
+    // Generate random identifiers
+    std::mt19937_64 rand;
+    std::uniform_int_distribution<size_t> dist_all;
+    const size_t NUM_IDS = 10000000;
+    std::vector<size_t> ids;
+    ids.resize(NUM_IDS);
+    std::generate_n(ids.begin(), NUM_IDS, std::bind(dist_all, std::ref(rand)));
+
+    {
+        std::cout << "Benchmarking reverse: LINQ version" << std::endl;
+        auto start_marker = std::chrono::steady_clock::now();
+
+        using namespace coveo::linq;
+        auto seq = from(coveo::enumerate_container(ids))
+                 | reverse();
+
+        auto end_marker = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed_s = end_marker - start_marker;
+        std::cout << "Benchmark completed in " << elapsed_s.count() << "s" << std::endl;
+
+        auto it = seq.begin();
+        for (size_t i = 0; i < 2; ++i) {
+            std::cout << *it++ << " ";
+        }
+        std::cout << "..." << std::endl;
+    }
+    {
+        std::cout << "Benchmarking reverse: std version" << std::endl;
+        auto start_marker = std::chrono::steady_clock::now();
+
+        auto seq = coveo::enumerate_container(ids);
+        std::vector<size_t> ids2(seq.begin(), seq.end());
+        std::reverse(ids2.begin(), ids2.end());
+
+        auto end_marker = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed_s = end_marker - start_marker;
+        std::cout << "Benchmark completed in " << elapsed_s.count() << "s" << std::endl;
+
+        auto it = ids2.begin();
+        for (size_t i = 0; i < 2; ++i) {
+            std::cout << *it++ << " ";
+        }
+        std::cout << "..." << std::endl;
+    }
 }
 
 } // linq

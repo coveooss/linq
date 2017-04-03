@@ -10,6 +10,8 @@ namespace linq {
 void linq_tests();
 void chaining_tests();
 
+void linq_benchmarks();
+
 } // linq
 } // coveo_tests
 

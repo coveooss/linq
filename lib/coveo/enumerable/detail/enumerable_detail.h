@@ -104,6 +104,23 @@ auto get_copied_upopt(const std::unique_ptr<T>&)
     return std::unique_ptr<T>();
 }
 
+// Returns a size delegate for a sequence if iterators can provide that information quickly
+template<typename It>
+auto get_size_delegate_for_iterators(const It& beg, const It& end) -> typename std::enable_if<std::is_base_of<std::random_access_iterator_tag,
+                                                                                                              typename std::iterator_traits<It>::iterator_category>::value,
+                                                                                              std::function<std::size_t()>>::type
+{
+    return [beg, end]() -> std::size_t { return std::distance(beg, end); };
+};
+template<typename It>
+auto get_size_delegate_for_iterators(const It&, const It&) -> typename std::enable_if<!std::is_base_of<std::random_access_iterator_tag,
+                                                                                                       typename std::iterator_traits<It>::iterator_category>::value,
+                                                                                      std::function<std::size_t()>>::type
+{
+    // No way to quickly determine size, don't try
+    return nullptr;
+};
+
 } // detail
 } // coveo
 

@@ -134,15 +134,17 @@ auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<!coveo::deta
 };
 template<typename C, typename Seq>
 auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
-                                                                    std::is_base_of<typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category,
-                                                                                    std::random_access_iterator_tag>::value, void>::type
+                                                                    std::is_base_of<std::random_access_iterator_tag,
+                                                                                    typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category>::value,
+                                                                    void>::type
 {
     cnt.reserve(std::distance(std::begin(seq), std::end(seq)));
 };
 template<typename C, typename Seq>
 auto try_reserve(C&, const Seq&) -> typename std::enable_if<!coveo::detail::has_size_const_method<typename std::decay<Seq>::type>::value &&
-                                                            !std::is_base_of<typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category,
-                                                                             std::random_access_iterator_tag>::value, void>::type
+                                                            !std::is_base_of<std::random_access_iterator_tag,
+                                                                             typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category>::value,
+                                                            void>::type
 {
     // Can't reserve, no fast way of doing so
 };
@@ -170,8 +172,8 @@ auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<!coveo::de
 };
 template<typename T, typename Seq>
 auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
-                                                                      std::is_base_of<typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category,
-                                                                                      std::random_access_iterator_tag>::value,
+                                                                      std::is_base_of<std::random_access_iterator_tag,
+                                                                                      typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category>::value,
                                                                       typename coveo::enumerable<T>::size_delegate>::type
 {
     std::size_t size = static_cast<std::size_t>(std::distance(std::begin(seq), std::end(seq)));
@@ -179,8 +181,8 @@ auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<!coveo::de
 };
 template<typename T, typename Seq>
 auto try_get_size_delegate(const Seq&) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
-                                                                  !std::is_base_of<typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category,
-                                                                                   std::random_access_iterator_tag>::value,
+                                                                  !std::is_base_of<std::random_access_iterator_tag,
+                                                                                   typename std::iterator_traits<typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type>::iterator_category>::value,
                                                                   typename coveo::enumerable<T>::size_delegate>::type
 {
     // No way to quickly determine size, don't try

@@ -277,9 +277,7 @@ public:
                 ++it;
             }
             return pobj;
-        }, [it, end]() -> std::size_t {
-            return std::distance(it, end);
-        });
+        }, detail::get_size_delegate_for_iterators(it, end));
     }
 
     // Returns enumerable over a container, stored externally.

@@ -38,6 +38,65 @@ struct no_copy {
     }
 };
 
+// Vector whose iterators don't return references
+template<typename T>
+class noref_vector {
+    std::vector<T> v_;
+public:
+    class const_iterator
+    {
+        typename std::vector<T>::const_iterator it_;
+    public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type = T;
+        using pointer = const T*;
+        using reference = T;
+        using difference_type = std::ptrdiff_t;
+
+        const_iterator()
+            : it_() { }
+        explicit const_iterator(const typename std::vector<T>::const_iterator& it)
+            : it_(it) { }
+
+        T operator*() const {
+            T t = *it_;
+            return t;
+        }
+
+        const_iterator& operator++() {
+            ++it_;
+            return *this;
+        }
+        const_iterator operator++(int) {
+            const_iterator before(*this);
+            ++*this;
+            return before;
+        }
+
+        friend bool operator==(const const_iterator& left, const const_iterator& right) {
+            return left.it_ == right.it_;
+        }
+        friend bool operator!=(const const_iterator& left, const const_iterator& right) {
+            return left.it_ != right.it_;
+        }
+    };
+
+public:
+    noref_vector() : v_() { }
+    noref_vector(std::initializer_list<T> ilist) : v_(ilist) { }
+
+    void push_back(const T& obj) { v_.push_back(obj); }
+    void push_back(T&& obj) { v_.push_back(std::move(obj)); }
+
+    const_iterator begin() const { return const_iterator(v_.cbegin()); }
+    const_iterator end() const { return const_iterator(v_.cend()); }
+    const_iterator cbegin() const { return begin(); }
+    const_iterator cend() const { return end(); }
+
+    std::size_t size() const { return v_.size(); }
+    bool empty() const { return v_.empty(); }
+};
+
 } // detail
 
 // Runs all tests for coveo::enumerable
@@ -173,6 +232,17 @@ void enumerable_tests()
         lexpected.emplace_back(42);
         detail::validate_sequence(seq, lexpected, false);
     }
+
+#if 0
+    // sequence with iterator returning non-reference
+    {
+        detail::noref_vector<int> vcnt = { 42, 23, 66 };
+        std::vector<int> vexpected = { 42, 23, 66 };
+        auto seq_cnt = coveo::enumerate_container(vcnt);
+        auto seq_it = coveo::enumerate_range(seq_cnt.begin(), seq_cnt.end());
+        detail::validate_sequence(seq_it, vexpected, false);
+    }
+#endif
 }
 
 } // enumerable

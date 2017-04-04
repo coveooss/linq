@@ -25,11 +25,11 @@ namespace linq {
 //
 //   using namespace coveo::linq;
 //   auto result = from(some_sequence)
-//              >> linq_operator(...)
-//              >> ...;
+//               | linq_operator(...)
+//               | ...;
 //
 template<typename Seq>
-decltype(auto) from(Seq&& seq_) {
+auto from(Seq&& seq_) -> decltype(std::forward<Seq>(seq_)) {
     return std::forward<Seq>(seq_);
 }
 
@@ -38,11 +38,13 @@ decltype(auto) from(Seq&& seq_) {
 //
 //   using namespace coveo::linq;
 //   auto result = from_range(something.begin(), something.end())
-//              >> linq_operator(...)
-//              >> ...;
+//               | linq_operator(...)
+//               | ...;
 //
 template<typename ItBeg, typename ItEnd>
-auto from_range(ItBeg&& ibeg, ItEnd&& iend) {
+auto from_range(ItBeg&& ibeg, ItEnd&& iend)
+    -> decltype(enumerate_range(std::forward<ItBeg>(ibeg), std::forward<ItEnd>(iend)))
+{
     return enumerate_range(std::forward<ItBeg>(ibeg), std::forward<ItEnd>(iend));
 }
 
@@ -51,12 +53,14 @@ auto from_range(ItBeg&& ibeg, ItEnd&& iend) {
 //
 //   using namespace coveo::linq;
 //   auto result = from_int_range(1, 10)
-//              >> linq_operator(...)
-//              >> ...;
+//               | linq_operator(...)
+//               | ...;
 //
 template<typename IntT>
-auto from_int_range(IntT first, std::size_t count) {
-    std::vector<std::decay_t<IntT>> vvalues;
+auto from_int_range(IntT first, std::size_t count)
+    -> decltype(coveo::enumerate_container(std::declval<std::vector<typename std::decay<IntT>::type>&&>()))
+{
+    std::vector<typename std::decay<IntT>::type> vvalues;
     vvalues.reserve(count);
     for (std::size_t i = 0; i < count; ++i) {
         vvalues.push_back(first++);
@@ -69,12 +73,14 @@ auto from_int_range(IntT first, std::size_t count) {
 //
 //   using namespace coveo::linq;
 //   auto result = from_repeated("Life", 7)
-//              >> linq_operator(...)
-//              >> ...;
+//               | linq_operator(...)
+//               | ...;
 //
 template<typename T>
-auto from_repeated(const T& value, std::size_t count) {
-    std::vector<std::decay_t<T>> vvalues;
+auto from_repeated(const T& value, std::size_t count)
+    -> decltype(coveo::enumerate_container(std::declval<std::vector<typename std::decay<T>::type>&&>()))
+{
+    std::vector<typename std::decay<T>::type> vvalues;
     vvalues.reserve(count);
     for (std::size_t i = 0; i < count; ++i) {
         vvalues.push_back(value);
@@ -88,11 +94,11 @@ auto from_repeated(const T& value, std::size_t count) {
 //
 //   using namespace coveo::linq;
 //   auto result = from(some_sequence)
-//              >> linq_op_1(...)
-//              >> linq_op_2(...);
+//               | linq_op_1(...)
+//               | linq_op_2(...);
 //
 template<typename Seq, typename Op>
-auto operator>>(Seq&& seq, Op&& op) -> decltype(op(std::forward<Seq>(seq))) {
+auto operator|(Seq&& seq, Op&& op) -> decltype(op(std::forward<Seq>(seq))) {
     return op(std::forward<Seq>(seq));
 }
 
@@ -103,41 +109,28 @@ auto operator>>(Seq&& seq, Op&& op) -> decltype(op(std::forward<Seq>(seq))) {
 // Function receives previous aggregate and new element, must return new aggregate.
 // Does not work on empty sequences.
 template<typename F>
-auto aggregate(const F& agg_f) {
-    return [&agg_f](auto&& seq) {
-        auto it = std::begin(seq);
-        auto end = std::end(seq);
-        if (it == end) {
-            detail::throw_linq_empty_sequence();
-        }
-        auto aggregate(*it);
-        for (++it; it != end; ++it) {
-            aggregate = agg_f(aggregate, *it);
-        }
-        return aggregate;
-    };
+auto aggregate(const F& agg_f)
+    -> detail::aggregate_impl_1<F>
+{
+    return detail::aggregate_impl_1<F>(agg_f);
 }
 
 // Same thing with an initial value for the aggregate.
 // Works with empty sequences because of this.
 template<typename Acc, typename F>
-auto aggregate(const Acc& seed, const F& agg_f) {
-    return [&seed, &agg_f](auto&& seq) {
-        Acc aggregate(seed);
-        for (auto&& element : seq) {
-            aggregate = agg_f(aggregate, element);
-        }
-        return aggregate;
-    };
+auto aggregate(const Acc& seed, const F& agg_f)
+    -> detail::aggregate_impl_2<Acc, F>
+{
+    return detail::aggregate_impl_2<Acc, F>(seed, agg_f);
 }
 
 // Same thing with a result selector function that
 // converts the final aggregate.
 template<typename Acc, typename F, typename RF>
-auto aggregate(const Acc& seed, const F& agg_f, const RF& result_f) {
-    return [&seed, &agg_f, &result_f](auto&& seq) {
-        return result_f(aggregate(seed, agg_f)(seq));
-    };
+auto aggregate(const Acc& seed, const F& agg_f, const RF& result_f)
+    -> detail::aggregate_impl_3<Acc, F, RF>
+{
+    return detail::aggregate_impl_3<Acc, F, RF>(seed, agg_f, result_f);
 }
 
 // C++ LINQ operator: all
@@ -146,10 +139,10 @@ auto aggregate(const Acc& seed, const F& agg_f, const RF& result_f) {
 // Operator that checks if all elements in a sequence satisfy a given predicate.
 // Works on empty sequences (returns true in such a case).
 template<typename Pred>
-auto all(const Pred& pred) {
-    return [&pred](auto&& seq) {
-        return std::all_of(std::begin(seq), std::end(seq), pred);
-    };
+auto all(const Pred& pred)
+    -> detail::all_impl<Pred>
+{
+    return detail::all_impl<Pred>(pred);
 }
 
 // C++ LINQ operator: any
@@ -157,10 +150,10 @@ auto all(const Pred& pred) {
 
 // Operator that checks if a sequence has elements.
 template<typename = void>
-auto any() {
-    return [](auto&& seq) {
-        return std::begin(seq) != std::end(seq);
-    };
+auto any()
+    -> detail::any_impl<>
+{
+    return detail::any_impl<>();
 }
 
 // C++ LINQ operator: average
@@ -170,21 +163,10 @@ auto any() {
 // using a function to get a numerical value for each.
 // Does not work on empty sequences.
 template<typename F>
-auto average(const F& num_f) {
-    return [&num_f](auto&& seq) {
-        auto it = std::begin(seq);
-        auto end = std::end(seq);
-        if (it == end) {
-            detail::throw_linq_empty_sequence();
-        }
-        auto total = num_f(*it);
-        decltype(total) count = 1;
-        for (++it; it != end; ++it) {
-            total += num_f(*it);
-            ++count;
-        }
-        return total / count;
-    };
+auto average(const F& num_f)
+    -> detail::average_impl<F>
+{
+    return detail::average_impl<F>(num_f);
 }
 
 // C++ LINQ operator: concat
@@ -193,7 +175,9 @@ auto average(const F& num_f) {
 // Operator that concatenates the elements of two sequences.
 // Sequences must have compatible elements for this to work.
 template<typename Seq2>
-auto concat(Seq2&& seq2) {
+auto concat(Seq2&& seq2)
+    -> detail::concat_impl<Seq2>
+{
     return detail::concat_impl<Seq2>(std::forward<Seq2>(seq2));
 }
 
@@ -203,33 +187,19 @@ auto concat(Seq2&& seq2) {
 // Operator that determines if a sequence contains a specific element.
 // Uses operator== to compare the elements.
 template<typename T>
-auto contains(const T& obj) {
-    return [&obj](auto&& seq) {
-        bool found = false;
-        for (auto&& element : seq) {
-            if (element == obj) {
-                found = true;
-                break;
-            }
-        }
-        return found;
-    };
+auto contains(const T& obj)
+    -> detail::contains_impl_1<T>
+{
+    return detail::contains_impl_1<T>(obj);
 }
 
 // Same thing with a predicate to compare the elements.
 // The predicate always receives obj as its second argument.
 template<typename T, typename Pred>
-auto contains(const T& obj, const Pred& pred) {
-    return [&obj, &pred](auto&& seq) {
-        bool found = false;
-        for (auto&& element : seq) {
-            if (pred(element, obj)) {
-                found = true;
-                break;
-            }
-        }
-        return found;
-    };
+auto contains(const T& obj, const Pred& pred)
+    -> detail::contains_impl_2<T, Pred>
+{
+    return detail::contains_impl_2<T, Pred>(obj, pred);
 }
 
 // C++ LINQ operator: count
@@ -237,19 +207,19 @@ auto contains(const T& obj, const Pred& pred) {
 
 // Operator that returns the number of elements in a sequence.
 template<typename = void>
-auto count() {
-    return [](auto&& seq) {
-        return static_cast<std::size_t>(std::distance(std::begin(seq), std::end(seq)));
-    };
+auto count()
+    -> detail::count_impl_0<>
+{
+    return detail::count_impl_0<>();
 }
 
 // Operator that returns the number of elements in a sequence
 // that satisfy a given predicate.
 template<typename Pred>
-auto count(const Pred& pred) {
-    return [&pred](auto&& seq) {
-        return static_cast<std::size_t>(std::count_if(std::begin(seq), std::end(seq), pred));
-    };
+auto count(const Pred& pred)
+    -> detail::count_impl_1<Pred>
+{
+    return detail::count_impl_1<Pred>(pred);
 }
 
 // C++ LINQ operator: default_if_empty
@@ -258,30 +228,18 @@ auto count(const Pred& pred) {
 // Operator that returns a sequence or, if it's empty, a sequence
 // containing a single, default element.
 template<typename = void>
-auto default_if_empty() {
-    return [](auto&& seq) {
-        coveo::enumerable<typename detail::seq_traits<decltype(seq)>::raw_value_type> e;
-        if (from(seq) >> any()) {
-            e = coveo::enumerate_container(seq);
-        } else {
-            e = coveo::enumerate_one(typename detail::seq_traits<decltype(seq)>::raw_value_type());
-        }
-        return e;
-    };
+auto default_if_empty()
+    -> detail::default_if_empty_impl_0<>
+{
+    return detail::default_if_empty_impl_0<>();
 }
 
 // Same thing but with a specific default value if sequence is empty.
 template<typename T>
-auto default_if_empty(const T& obj) {
-    return [&obj](auto&& seq) {
-        coveo::enumerable<typename detail::seq_traits<decltype(seq)>::raw_value_type> e;
-        if (from(seq) >> any()) {
-            e = coveo::enumerate_container(seq);
-        } else {
-            e = coveo::enumerate_one(typename detail::seq_traits<decltype(seq)>::raw_value_type(obj));
-        }
-        return e;
-    };
+auto default_if_empty(const T& obj)
+    -> detail::default_if_empty_impl_1<T>
+{
+    return detail::default_if_empty_impl_1<T>(obj);
 }
 
 // C++ LINQ operator: distinct
@@ -290,14 +248,18 @@ auto default_if_empty(const T& obj) {
 // Operator that filters out duplicate elements in a sequence.
 // Otherwise, returns elements in the same order.
 template<typename = void>
-auto distinct() {
-    return detail::distinct_impl<std::less<>>(std::less<>());
+auto distinct()
+    -> detail::distinct_impl<detail::less<>>
+{
+    return detail::distinct_impl<detail::less<>>(detail::less<>());
 }
 
 // Same thing but with a predicate to compare the elements.
 // The predicate must provide a strict ordering of elements, like std::less.
 template<typename Pred>
-auto distinct(Pred&& pred) {
+auto distinct(Pred&& pred)
+    -> detail::distinct_impl<Pred>
+{
     return detail::distinct_impl<Pred>(std::forward<Pred>(pred));
 }
 
@@ -307,18 +269,10 @@ auto distinct(Pred&& pred) {
 // Operator that returns the nth element in a sequence.
 // Throws if sequence does not have enough elements.
 template<typename = void>
-auto element_at(std::size_t n) {
-    return [n](auto&& seq) -> decltype(auto) {
-        // #clp TODO optimize for bidirectional/random-access iterators
-        auto icur = std::begin(seq);
-        auto iend = std::end(seq);
-        for (std::size_t i = 0; i < n && icur != iend; ++i, ++icur) {
-        }
-        if (icur == iend) {
-            detail::throw_linq_out_of_range();
-        }
-        return *icur;
-    };
+auto element_at(std::size_t n)
+    -> detail::element_at_impl<>
+{
+    return detail::element_at_impl<>(n);
 }
 
 // C++ LINQ operator: element_at_or_default
@@ -328,16 +282,10 @@ auto element_at(std::size_t n) {
 // if the sequence does not have enough elements, a
 // default-initialized value.
 template<typename = void>
-auto element_at_or_default(std::size_t n) {
-    return [n](auto&& seq) {
-        // #clp TODO optimize for bidirectional/random-access iterators
-        auto icur = std::begin(seq);
-        auto iend = std::end(seq);
-        for (std::size_t i = 0; i < n && icur != iend; ++i, ++icur) {
-        }
-        return icur != iend ? *icur
-            : typename detail::seq_traits<decltype(seq)>::raw_value_type();
-    };
+auto element_at_or_default(std::size_t n)
+    -> detail::element_at_or_default_impl<>
+{
+    return detail::element_at_or_default_impl<>(n);
 }
 
 // C++ LINQ operator: except
@@ -346,14 +294,18 @@ auto element_at_or_default(std::size_t n) {
 // Operator that returns all elements that are in the first sequence
 // but not in the second sequence (essentially a set difference).
 template<typename Seq2>
-auto except(Seq2&& seq2) {
-    return detail::except_impl<Seq2, std::less<>>(std::forward<Seq2>(seq2), std::less<>());
+auto except(Seq2&& seq2)
+    -> detail::except_impl<Seq2, detail::less<>>
+{
+    return detail::except_impl<Seq2, detail::less<>>(std::forward<Seq2>(seq2), detail::less<>());
 }
 
 // Same thing but with a predicate to compare the elements.
 // The predicate must provide a strict ordering of the elements, like std::less.
 template<typename Seq2, typename Pred>
-auto except(Seq2&& seq2, Pred&& pred) {
+auto except(Seq2&& seq2, Pred&& pred)
+    -> detail::except_impl<Seq2, Pred>
+{
     return detail::except_impl<Seq2, Pred>(std::forward<Seq2>(seq2), std::forward<Pred>(pred));
 }
 
@@ -363,33 +315,19 @@ auto except(Seq2&& seq2, Pred&& pred) {
 // Operator that returns the first element in a sequence.
 // Does not work on empty sequences.
 template<typename = void>
-auto first() {
-    return [](auto&& seq) -> decltype(auto) {
-        auto icur = std::begin(seq);
-        if (icur == std::end(seq)) {
-            detail::throw_linq_empty_sequence();
-        }
-        return *icur;
-    };
+auto first()
+    -> detail::first_impl_0<>
+{
+    return detail::first_impl_0<>();
 }
 
 // Operator that returns the first element in a sequence
 // that satisfies a predicate. Does not work on empty sequences.
 template<typename Pred>
-auto first(const Pred& pred) {
-    return [&pred](auto&& seq) -> decltype(auto) {
-        auto icur = std::begin(seq);
-        auto iend = std::end(seq);
-        if (icur == iend) {
-            detail::throw_linq_empty_sequence();
-        }
-        // #clp TODO what if sequence is sorted? Can we optimize?
-        auto ifound = std::find_if(icur, iend, pred);
-        if (ifound == iend) {
-            detail::throw_linq_out_of_range();
-        }
-        return *ifound;
-    };
+auto first(const Pred& pred)
+    -> detail::first_impl_1<Pred>
+{
+    return detail::first_impl_1<Pred>(pred);
 }
 
 // C++ LINQ operator: first_or_default
@@ -398,25 +336,20 @@ auto first(const Pred& pred) {
 // Operator that returns the first element in a sequence
 // or a default-initialized value if it's empty.
 template<typename = void>
-auto first_or_default() {
-    return [](auto&& seq) {
-        auto icur = std::begin(seq);
-        return icur != std::end(seq) ? *icur
-            : typename detail::seq_traits<decltype(seq)>::raw_value_type();
-    };
+auto first_or_default()
+    -> detail::first_or_default_impl_0<>
+{
+    return detail::first_or_default_impl_0<>();
 }
 
 // Operator that returns the first element in a sequence
 // that satistifies a predicate or, if none are found,
 // a default-initialized value.
 template<typename Pred>
-auto first_or_default(const Pred& pred) {
-    return [&pred](auto&& seq) {
-        auto iend = std::end(seq);
-        auto ifound = std::find_if(std::begin(seq), iend, pred);
-        return ifound != iend ? *ifound
-            : typename detail::seq_traits<decltype(seq)>::raw_value_type();
-    };
+auto first_or_default(const Pred& pred)
+    -> detail::first_or_default_impl_1<Pred>
+{
+    return detail::first_or_default_impl_1<Pred>(pred);
 }
 
 // C++ LINQ operators: group_by, group_values_by, group_by_and_fold, group_values_by_and_fold
@@ -425,14 +358,19 @@ auto first_or_default(const Pred& pred) {
 // Operator that groups elements in a sequence according
 // to their keys, as returned by a key selector.
 template<typename KeySelector>
-auto group_by(KeySelector&& key_sel) {
+auto group_by(KeySelector&& key_sel)
+    -> detail::group_by_impl<KeySelector,
+                             detail::identity<>,
+                             detail::pair_of<>,
+                             detail::less<>>
+{
     return detail::group_by_impl<KeySelector,
                                  detail::identity<>,
                                  detail::pair_of<>,
-                                 std::less<>>(std::forward<KeySelector>(key_sel),
-                                              detail::identity<>(),
-                                              detail::pair_of<>(),
-                                              std::less<>());
+                                 detail::less<>>(std::forward<KeySelector>(key_sel),
+                                                 detail::identity<>(),
+                                                 detail::pair_of<>(),
+                                                 detail::less<>());
 }
 
 // Same thing but with a predicate used to compare keys.
@@ -440,6 +378,10 @@ template<typename KeySelector,
          typename Pred>
 auto group_by(KeySelector&& key_sel,
               Pred&& pred)
+    -> detail::group_by_impl<KeySelector,
+                             detail::identity<>,
+                             detail::pair_of<>,
+                             Pred>
 {
     return detail::group_by_impl<KeySelector,
                                  detail::identity<>,
@@ -456,14 +398,18 @@ template<typename KeySelector,
          typename ValueSelector>
 auto group_values_by(KeySelector&& key_sel,
                      ValueSelector&& value_sel)
+    -> detail::group_by_impl<KeySelector,
+                             ValueSelector,
+                             detail::pair_of<>,
+                             detail::less<>>
 {
     return detail::group_by_impl<KeySelector,
                                  ValueSelector,
                                  detail::pair_of<>,
-                                 std::less<>>(std::forward<KeySelector>(key_sel),
-                                              std::forward<ValueSelector>(value_sel),
-                                              detail::pair_of<>(),
-                                              std::less<>());
+                                 detail::less<>>(std::forward<KeySelector>(key_sel),
+                                                 std::forward<ValueSelector>(value_sel),
+                                                 detail::pair_of<>(),
+                                                 detail::less<>());
 }
 
 // Same thing but with a predicate used to compare keys.
@@ -473,6 +419,10 @@ template<typename KeySelector,
 auto group_values_by(KeySelector&& key_sel,
                      ValueSelector&& value_sel,
                      Pred&& pred)
+    -> detail::group_by_impl<KeySelector,
+                             ValueSelector,
+                             detail::pair_of<>,
+                             Pred>
 {
     return detail::group_by_impl<KeySelector,
                                  ValueSelector,
@@ -490,14 +440,18 @@ template<typename KeySelector,
          typename ResultSelector>
 auto group_by_and_fold(KeySelector&& key_sel,
                        ResultSelector&& result_sel)
+    -> detail::group_by_impl<KeySelector,
+                             detail::identity<>,
+                             ResultSelector,
+                             detail::less<>>
 {
     return detail::group_by_impl<KeySelector,
                                  detail::identity<>,
                                  ResultSelector,
-                                 std::less<>>(std::forward<KeySelector>(key_sel),
-                                              detail::identity<>(),
-                                              std::forward<ResultSelector>(result_sel),
-                                              std::less<>());
+                                 detail::less<>>(std::forward<KeySelector>(key_sel),
+                                                 detail::identity<>(),
+                                                 std::forward<ResultSelector>(result_sel),
+                                                 detail::less<>());
 }
 
 // Same thing with a predicate to compare the keys.
@@ -507,6 +461,10 @@ template<typename KeySelector,
 auto group_by_and_fold(KeySelector&& key_sel,
                        ResultSelector&& result_sel,
                        Pred&& pred)
+    -> detail::group_by_impl<KeySelector,
+                             detail::identity<>,
+                             ResultSelector,
+                             Pred>
 {
     return detail::group_by_impl<KeySelector,
                                  detail::identity<>,
@@ -526,14 +484,18 @@ template<typename KeySelector,
 auto group_values_by_and_fold(KeySelector&& key_sel,
                               ValueSelector&& value_sel,
                               ResultSelector&& result_sel)
+    -> detail::group_by_impl<KeySelector,
+                             ValueSelector,
+                             ResultSelector,
+                             detail::less<>>
 {
     return detail::group_by_impl<KeySelector,
                                  ValueSelector,
                                  ResultSelector,
-                                 std::less<>>(std::forward<KeySelector>(key_sel),
-                                              std::forward<ValueSelector>(value_sel),
-                                              std::forward<ResultSelector>(result_sel),
-                                              std::less<>());
+                                 detail::less<>>(std::forward<KeySelector>(key_sel),
+                                                 std::forward<ValueSelector>(value_sel),
+                                                 std::forward<ResultSelector>(result_sel),
+                                                 detail::less<>());
 }
 
 // Same thing with a predicate to compare the keys.
@@ -545,6 +507,10 @@ auto group_values_by_and_fold(KeySelector&& key_sel,
                               ValueSelector&& value_sel,
                               ResultSelector&& result_sel,
                               Pred&& pred)
+    -> detail::group_by_impl<KeySelector,
+                             ValueSelector,
+                             ResultSelector,
+                             Pred>
 {
     return detail::group_by_impl<KeySelector,
                                  ValueSelector,
@@ -569,16 +535,21 @@ auto group_join(InnerSeq&& inner_seq,
                 OuterKeySelector&& outer_key_sel,
                 InnerKeySelector&& inner_key_sel,
                 ResultSelector&& result_sel)
+    -> detail::group_join_impl<InnerSeq,
+                               OuterKeySelector,
+                               InnerKeySelector,
+                               ResultSelector,
+                               detail::less<>>
 {
     return detail::group_join_impl<InnerSeq,
                                    OuterKeySelector,
                                    InnerKeySelector,
                                    ResultSelector,
-                                   std::less<>>(std::forward<InnerSeq>(inner_seq),
-                                                std::forward<OuterKeySelector>(outer_key_sel),
-                                                std::forward<InnerKeySelector>(inner_key_sel),
-                                                std::forward<ResultSelector>(result_sel),
-                                                std::less<>());
+                                   detail::less<>>(std::forward<InnerSeq>(inner_seq),
+                                                   std::forward<OuterKeySelector>(outer_key_sel),
+                                                   std::forward<InnerKeySelector>(inner_key_sel),
+                                                   std::forward<ResultSelector>(result_sel),
+                                                   detail::less<>());
 }
 
 // Same as above, with a predicate to compare the keys in both sequences.
@@ -592,6 +563,11 @@ auto group_join(InnerSeq&& inner_seq,
                 InnerKeySelector&& inner_key_sel,
                 ResultSelector&& result_sel,
                 Pred&& pred)
+    -> detail::group_join_impl<InnerSeq,
+                               OuterKeySelector,
+                               InnerKeySelector,
+                               ResultSelector,
+                               Pred>
 {
     return detail::group_join_impl<InnerSeq,
                                    OuterKeySelector,
@@ -610,15 +586,19 @@ auto group_join(InnerSeq&& inner_seq,
 // Operator that returns all elements that are found in two sequences.
 // Essentially a set intersection.
 template<typename Seq2>
-auto intersect(Seq2&& seq2) {
-    return detail::intersect_impl<Seq2, std::less<>>(std::forward<Seq2>(seq2),
-                                                     std::less<>());
+auto intersect(Seq2&& seq2)
+    -> detail::intersect_impl<Seq2, detail::less<>>
+{
+    return detail::intersect_impl<Seq2, detail::less<>>(std::forward<Seq2>(seq2),
+                                                        detail::less<>());
 }
 
 // Same as above, with a predicate to compare the elements.
 // The predicate must provide a strict ordering of the elements, like std::less.
 template<typename Seq2, typename Pred>
-auto intersect(Seq2&& seq2, Pred&& pred) {
+auto intersect(Seq2&& seq2, Pred&& pred)
+    -> detail::intersect_impl<Seq2, Pred>
+{
     return detail::intersect_impl<Seq2, Pred>(std::forward<Seq2>(seq2),
                                               std::forward<Pred>(pred));
 }
@@ -636,16 +616,21 @@ auto join(InnerSeq&& inner_seq,
           OuterKeySelector&& outer_key_sel,
           InnerKeySelector&& inner_key_sel,
           ResultSelector&& result_sel)
+    -> detail::join_impl<InnerSeq,
+                         OuterKeySelector,
+                         InnerKeySelector,
+                         ResultSelector,
+                         detail::less<>>
 {
     return detail::join_impl<InnerSeq,
                              OuterKeySelector,
                              InnerKeySelector,
                              ResultSelector,
-                             std::less<>>(std::forward<InnerSeq>(inner_seq),
-                                          std::forward<OuterKeySelector>(outer_key_sel),
-                                          std::forward<InnerKeySelector>(inner_key_sel),
-                                          std::forward<ResultSelector>(result_sel),
-                                          std::less<>());
+                             detail::less<>>(std::forward<InnerSeq>(inner_seq),
+                                             std::forward<OuterKeySelector>(outer_key_sel),
+                                             std::forward<InnerKeySelector>(inner_key_sel),
+                                             std::forward<ResultSelector>(result_sel),
+                                             detail::less<>());
 }
 
 // Same as above, with a predicate to compare the keys.
@@ -659,6 +644,11 @@ auto join(InnerSeq&& inner_seq,
           InnerKeySelector&& inner_key_sel,
           ResultSelector&& result_sel,
           Pred&& pred)
+    -> detail::join_impl<InnerSeq,
+                         OuterKeySelector,
+                         InnerKeySelector,
+                         ResultSelector,
+                         Pred>
 {
     return detail::join_impl<InnerSeq,
                              OuterKeySelector,
@@ -677,14 +667,18 @@ auto join(InnerSeq&& inner_seq,
 // Operator that returns the last element in a sequence.
 // Does not work on empty sequences.
 template<typename = void>
-auto last() {
-    return detail::last_impl_0();
+auto last()
+    -> detail::last_impl_0<>
+{
+    return detail::last_impl_0<>();
 }
 
 // Operator that returns the last element in a sequence
 // that satisfies a predicate. Does not work on empty sequences.
 template<typename Pred>
-auto last(const Pred& pred) {
+auto last(const Pred& pred)
+    -> detail::last_impl_1<Pred>
+{
     return detail::last_impl_1<Pred>(pred);
 }
 
@@ -694,15 +688,19 @@ auto last(const Pred& pred) {
 // Operator that returns the last element in a sequence
 // or a default-initialized value if it's empty.
 template<typename = void>
-auto last_or_default() {
-    return detail::last_or_default_impl_0();
+auto last_or_default()
+    -> detail::last_or_default_impl_0<>
+{
+    return detail::last_or_default_impl_0<>();
 }
 
 // Operator that returns the last element in a sequence
 // that satistifies a predicate or, if none are found,
 // a default-initialized value.
 template<typename Pred>
-auto last_or_default(const Pred& pred) {
+auto last_or_default(const Pred& pred)
+    -> detail::last_or_default_impl_1<Pred>
+{
     return detail::last_or_default_impl_1<Pred>(pred);
 }
 
@@ -712,34 +710,20 @@ auto last_or_default(const Pred& pred) {
 // Operator that returns the maximum value in a sequence.
 // Does not work on empty sequences.
 template<typename = void>
-auto max() {
-    return [](auto&& seq) -> decltype(auto) {
-        auto iend = std::end(seq);
-        auto imax = std::max_element(std::begin(seq), iend);
-        if (imax == iend) {
-            detail::throw_linq_empty_sequence();
-        }
-        return *imax;
-    };
+auto max()
+    -> detail::max_impl_0<>
+{
+    return detail::max_impl_0<>();
 }
 
 // Operator that returns the maximum value in a sequence by
 // projecting each element in the sequence into a different
 // value using a selector. Does not work on empty sequences.
 template<typename Selector>
-auto max(const Selector& sel) {
-    return [&sel](auto&& seq) {
-        auto icur = std::begin(seq);
-        auto iend = std::end(seq);
-        if (icur == iend) {
-            detail::throw_linq_empty_sequence();
-        }
-        auto max_val = sel(*icur);
-        while (++icur != iend) {
-            max_val = std::max(max_val, sel(*icur));
-        }
-        return max_val;
-    };
+auto max(const Selector& sel)
+    -> detail::max_impl_1<Selector>
+{
+    return detail::max_impl_1<Selector>(sel);
 }
 
 // C++ LINQ operator: min
@@ -748,34 +732,20 @@ auto max(const Selector& sel) {
 // Operator that returns the minimum value in a sequence.
 // Does not work on empty sequences.
 template<typename = void>
-auto min() {
-    return [](auto&& seq) -> decltype(auto) {
-        auto iend = std::end(seq);
-        auto imin = std::min_element(std::begin(seq), iend);
-        if (imin == iend) {
-            detail::throw_linq_empty_sequence();
-        }
-        return *imin;
-    };
+auto min()
+    -> detail::min_impl_0<>
+{
+    return detail::min_impl_0<>();
 }
 
 // Operator that returns the minimum value in a sequence by
 // projecting each element in the sequence into a different
 // value using a selector. Does not work on empty sequences.
 template<typename Selector>
-auto min(const Selector& sel) {
-    return [&sel](auto&& seq) {
-        auto icur = std::begin(seq);
-        auto iend = std::end(seq);
-        if (icur == iend) {
-            detail::throw_linq_empty_sequence();
-        }
-        auto min_val = sel(*icur);
-        while (++icur != iend) {
-            min_val = std::min(min_val, sel(*icur));
-        }
-        return min_val;
-    };
+auto min(const Selector& sel)
+    -> detail::min_impl_1<Selector>
+{
+    return detail::min_impl_1<Selector>(sel);
 }
 
 // C++ LINQ operators: order_by/order_by_descending/then_by/then_by_descending
@@ -785,56 +755,72 @@ auto min(const Selector& sel) {
 // using a key selector and then sorting elements by their keys using
 // operator< to compare the keys.
 template<typename KeySelector>
-auto order_by(KeySelector&& key_sel) {
-    typedef detail::order_by_comparator<KeySelector, std::less<>, false> comparator;
-    return detail::order_by_impl<comparator>(std::make_unique<comparator>(std::forward<KeySelector>(key_sel), std::less<>()));
+auto order_by(KeySelector&& key_sel)
+    -> detail::order_by_impl<detail::order_by_comparator<KeySelector, detail::less<>, false>>
+{
+    typedef detail::order_by_comparator<KeySelector, detail::less<>, false> comparator;
+    return detail::order_by_impl<comparator>(detail::make_unique<comparator>(std::forward<KeySelector>(key_sel), detail::less<>()));
 }
 
 // As above, but uses the given predicate to compare the keys.
 template<typename KeySelector, typename Pred>
-auto order_by(KeySelector&& key_sel, Pred&& pred) {
+auto order_by(KeySelector&& key_sel, Pred&& pred)
+    -> detail::order_by_impl<detail::order_by_comparator<KeySelector, Pred, false>>
+{
     typedef detail::order_by_comparator<KeySelector, Pred, false> comparator;
-    return detail::order_by_impl<comparator>(std::make_unique<comparator>(std::forward<KeySelector>(key_sel), std::forward<Pred>(pred)));
+    return detail::order_by_impl<comparator>(detail::make_unique<comparator>(std::forward<KeySelector>(key_sel), std::forward<Pred>(pred)));
 }
 
 // As the first implementation above, but sorts keys descending,
 // as if using operator>.
 template<typename KeySelector>
-auto order_by_descending(KeySelector&& key_sel) {
-    typedef detail::order_by_comparator<KeySelector, std::less<>, true> comparator;
-    return detail::order_by_impl<comparator>(std::make_unique<comparator>(std::forward<KeySelector>(key_sel), std::less<>()));
+auto order_by_descending(KeySelector&& key_sel)
+    -> detail::order_by_impl<detail::order_by_comparator<KeySelector, detail::less<>, true>>
+{
+    typedef detail::order_by_comparator<KeySelector, detail::less<>, true> comparator;
+    return detail::order_by_impl<comparator>(detail::make_unique<comparator>(std::forward<KeySelector>(key_sel), detail::less<>()));
 }
 
 // As above, but uses the given predicate to compare the keys.
 template<typename KeySelector, typename Pred>
-auto order_by_descending(KeySelector&& key_sel, Pred&& pred) {
+auto order_by_descending(KeySelector&& key_sel, Pred&& pred)
+    -> detail::order_by_impl<detail::order_by_comparator<KeySelector, Pred, true>>
+{
     typedef detail::order_by_comparator<KeySelector, Pred, true> comparator;
-    return detail::order_by_impl<comparator>(std::make_unique<comparator>(std::forward<KeySelector>(key_sel), std::forward<Pred>(pred)));
+    return detail::order_by_impl<comparator>(detail::make_unique<comparator>(std::forward<KeySelector>(key_sel), std::forward<Pred>(pred)));
 }
 
 // Operator that further orders a sequence previously ordered via order_by
 // using a different key selector.
 template<typename KeySelector>
-auto then_by(KeySelector&& key_sel) {
+auto then_by(KeySelector&& key_sel)
+    -> decltype(order_by(std::forward<KeySelector>(key_sel)))
+{
     return order_by(std::forward<KeySelector>(key_sel));
 }
 
 // As above, but uses the given predicate to compare the new keys.
 template<typename KeySelector, typename Pred>
-auto then_by(KeySelector&& key_sel, Pred&& pred) {
+auto then_by(KeySelector&& key_sel, Pred&& pred)
+    -> decltype(order_by(std::forward<KeySelector>(key_sel), std::forward<Pred>(pred)))
+{
     return order_by(std::forward<KeySelector>(key_sel), std::forward<Pred>(pred));
 }
 
 // Operator that further orders a sequence previously ordered via order_by
 // using a different key selector, but in descending order
 template<typename KeySelector>
-auto then_by_descending(KeySelector&& key_sel) {
+auto then_by_descending(KeySelector&& key_sel)
+    -> decltype(order_by_descending(std::forward<KeySelector>(key_sel)))
+{
     return order_by_descending(std::forward<KeySelector>(key_sel));
 }
 
 // As above, but uses the given predicate to compare the new keys.
 template<typename KeySelector, typename Pred>
-auto then_by_descending(KeySelector&& key_sel, Pred&& pred) {
+auto then_by_descending(KeySelector&& key_sel, Pred&& pred)
+    -> decltype(order_by_descending(std::forward<KeySelector>(key_sel), std::forward<Pred>(pred)))
+{
     return order_by_descending(std::forward<KeySelector>(key_sel), std::forward<Pred>(pred));
 }
 
@@ -843,8 +829,10 @@ auto then_by_descending(KeySelector&& key_sel, Pred&& pred) {
 
 // Operator that reverses the elements of a sequence.
 template<typename = void>
-auto reverse() {
-    return detail::reverse_impl();
+auto reverse()
+    -> detail::reverse_impl<>
+{
+    return detail::reverse_impl<>();
 }
 
 // C++ LINQ operators: select/select_with_index/select_many/select_many_with_index
@@ -853,14 +841,18 @@ auto reverse() {
 // Operator that projects each element in a sequence into another form
 // using a selector function, a little like std::transform.
 template<typename Selector>
-auto select(Selector&& sel) {
+auto select(Selector&& sel)
+    -> detail::select_impl<detail::indexless_selector_proxy<Selector>>
+{
     return detail::select_impl<detail::indexless_selector_proxy<Selector>>(
         detail::indexless_selector_proxy<Selector>(std::forward<Selector>(sel)));
 }
 
 // As above, but selector also receives the index of each element in the sequence.
 template<typename Selector>
-auto select_with_index(Selector&& sel) {
+auto select_with_index(Selector&& sel)
+    -> detail::select_impl<Selector>
+{
     return detail::select_impl<Selector>(std::forward<Selector>(sel));
 }
 
@@ -868,14 +860,18 @@ auto select_with_index(Selector&& sel) {
 // elements in another form using a selector function then flattens all
 // those sequences into one.
 template<typename Selector>
-auto select_many(Selector&& sel) {
+auto select_many(Selector&& sel)
+    -> detail::select_many_impl<detail::indexless_selector_proxy<Selector>>
+{
     return detail::select_many_impl<detail::indexless_selector_proxy<Selector>>(
         detail::indexless_selector_proxy<Selector>(std::forward<Selector>(sel)));
 }
 
 // As above, but selector also receives the index of each element in the sequence.
 template<typename Selector>
-auto select_many_with_index(Selector&& sel) {
+auto select_many_with_index(Selector&& sel)
+    -> detail::select_many_impl<Selector>
+{
     return detail::select_many_impl<Selector>(std::forward<Selector>(sel));
 }
 
@@ -885,18 +881,18 @@ auto select_many_with_index(Selector&& sel) {
 // Operator that verifies if two sequences contain the same elements.
 // Uses operator== to compare the elements.
 template<typename Seq2>
-auto sequence_equal(const Seq2& seq2) {
-    return [&seq2](auto&& seq) {
-        return std::equal(std::begin(seq), std::end(seq), std::begin(seq2), std::end(seq2));
-    };
+auto sequence_equal(const Seq2& seq2)
+    -> detail::sequence_equal_impl_1<Seq2>
+{
+    return detail::sequence_equal_impl_1<Seq2>(seq2);
 }
 
 // As above, but uses the given predicate to compare the elements.
 template<typename Seq2, typename Pred>
-auto sequence_equal(const Seq2& seq2, const Pred& pred) {
-    return [&seq2, &pred](auto&& seq) {
-        return std::equal(std::begin(seq), std::end(seq), std::begin(seq2), std::end(seq2), pred);
-    };
+auto sequence_equal(const Seq2& seq2, const Pred& pred)
+    -> detail::sequence_equal_impl_2<Seq2, Pred>
+{
+    return detail::sequence_equal_impl_2<Seq2, Pred>(seq2, pred);
 }
 
 // C++ LINQ operator: single
@@ -906,45 +902,20 @@ auto sequence_equal(const Seq2& seq2, const Pred& pred) {
 // Throws an exception if the sequence is empty or if it has
 // more than one value.
 template<typename = void>
-auto single() {
-    return [](auto&& seq) -> decltype(auto) {
-        auto ifirst = std::begin(seq);
-        auto iend = std::end(seq);
-        if (ifirst == iend) {
-            detail::throw_linq_empty_sequence();
-        }
-        auto inext = ifirst;
-        ++inext;
-        if (inext != iend) {
-            detail::throw_linq_out_of_range();
-        }
-        return *ifirst;
-    };
+auto single()
+    -> detail::single_impl_0<>
+{
+    return detail::single_impl_0<>();
 }
 
 // Operator that returns the single value in the given sequence
 // that satisfies the given predicate. Throws an exception if the
 // sequence contains no such element or more than one such element.
 template<typename Pred>
-auto single(const Pred& pred) {
-    return [&pred](auto&& seq) -> decltype(auto) {
-        auto ibeg = std::begin(seq);
-        auto iend = std::end(seq);
-        if (ibeg == iend) {
-            detail::throw_linq_empty_sequence();
-        }
-        auto ifound = std::find_if(ibeg, iend, pred);
-        if (ifound == iend) {
-            detail::throw_linq_out_of_range();
-        }
-        auto inext = ifound;
-        ++inext;
-        auto ifoundagain = std::find_if(inext, iend, pred);
-        if (ifoundagain != iend) {
-            detail::throw_linq_out_of_range();
-        }
-        return *ifound;
-    };
+auto single(const Pred& pred)
+    -> detail::single_impl_1<Pred>
+{
+    return detail::single_impl_1<Pred>(pred);
 }
 
 // C++ LINQ operator: single_or_default
@@ -954,41 +925,20 @@ auto single(const Pred& pred) {
 // or a default-initialized value if the sequence is empty or if
 // it has more than one element.
 template<typename = void>
-auto single_or_default() {
-    return [](auto&& seq) {
-        auto icur = std::begin(seq);
-        auto iend = std::end(seq);
-        if (icur != iend) {
-            auto inext = icur;
-            ++inext;
-            if (inext != iend) {
-                icur = iend;
-            }
-        }
-        return icur != iend ? *icur
-            : typename detail::seq_traits<decltype(seq)>::raw_value_type();
-    };
+auto single_or_default()
+    -> detail::single_or_default_impl_0<>
+{
+    return detail::single_or_default_impl_0<>();
 }
 
 // Operator that returns the single value in the given sequence
 // that satisfies the given predicate, or a default-initialized value
 // if the sequence contains no such element or more than one such element.
 template<typename Pred>
-auto single_or_default(const Pred& pred) {
-    return [&pred](auto&& seq) {
-        auto iend = std::end(seq);
-        auto ifound = std::find_if(std::begin(seq), iend, pred);
-        if (ifound != iend) {
-            auto inext = ifound;
-            ++inext;
-            auto ifoundagain = std::find_if(inext, iend, pred);
-            if (ifoundagain != iend) {
-                ifound = iend;
-            }
-        }
-        return ifound != iend ? *ifound
-            : typename detail::seq_traits<decltype(seq)>::raw_value_type();
-    };
+auto single_or_default(const Pred& pred)
+    -> detail::single_or_default_impl_1<Pred>
+{
+    return detail::single_or_default_impl_1<Pred>(pred);
 }
 
 // C++ LINQ operator: skip
@@ -998,11 +948,10 @@ auto single_or_default(const Pred& pred) {
 // If the sequence contains less than X elements, returns
 // an empty sequence.
 template<typename = void>
-auto skip(std::size_t n) {
-    auto n_pred = [n](auto&&, std::size_t idx) {
-        return idx < n;
-    };
-    return detail::skip_impl<decltype(n_pred)>(std::move(n_pred));
+auto skip(std::size_t n)
+    -> detail::skip_impl<detail::skip_n_pred<>>
+{
+    return detail::skip_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n));
 }
 
 // C++ LINQ operators: skip_while, skip_while_with_index
@@ -1013,7 +962,9 @@ auto skip(std::size_t n) {
 // only elements that satisfy the predicate, returns an
 // empty sequence.
 template<typename Pred>
-auto skip_while(Pred&& pred) {
+auto skip_while(Pred&& pred)
+    -> detail::skip_impl<detail::indexless_selector_proxy<Pred>>
+{
     return detail::skip_impl<detail::indexless_selector_proxy<Pred>>(
         detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)));
 }
@@ -1021,7 +972,9 @@ auto skip_while(Pred&& pred) {
 // As above, but the predicate receives the index of the
 // element in the sequence as second argument.
 template<typename Pred>
-auto skip_while_with_index(Pred&& pred) {
+auto skip_while_with_index(Pred&& pred)
+    -> detail::skip_impl<Pred>
+{
     return detail::skip_impl<Pred>(std::forward<Pred>(pred));
 }
 
@@ -1032,19 +985,10 @@ auto skip_while_with_index(Pred&& pred) {
 // using a function to get a numerical value for each.
 // Does not work on empty sequences.
 template<typename F>
-auto sum(const F& num_f) {
-    return [&num_f](auto&& seq) {
-        auto it = std::begin(seq);
-        auto end = std::end(seq);
-        if (it == end) {
-            detail::throw_linq_empty_sequence();
-        }
-        auto total = num_f(*it);
-        for (++it; it != end; ++it) {
-            total += num_f(*it);
-        }
-        return total;
-    };
+auto sum(const F& num_f)
+    -> detail::sum_impl<F>
+{
+    return detail::sum_impl<F>(num_f);
 }
 
 // C++ LINQ operator: take
@@ -1054,11 +998,10 @@ auto sum(const F& num_f) {
 // If the sequence contains less than X elements, returns
 // as much as possible.
 template<typename = void>
-auto take(std::size_t n) {
-    auto n_pred = [n](auto&&, std::size_t idx) {
-        return idx < n;
-    };
-    return detail::take_impl<decltype(n_pred)>(std::move(n_pred));
+auto take(std::size_t n)
+    -> detail::take_impl<detail::skip_n_pred<>>
+{
+    return detail::take_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n));
 }
 
 // C++ LINQ operators: take_while, take_while_with_index
@@ -1069,7 +1012,9 @@ auto take(std::size_t n) {
 // no elements that satisfy the predicate, returns an
 // empty sequence.
 template<typename Pred>
-auto take_while(Pred&& pred) {
+auto take_while(Pred&& pred)
+    -> detail::take_impl<detail::indexless_selector_proxy<Pred>>
+{
     return detail::take_impl<detail::indexless_selector_proxy<Pred>>(
         detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)));
 }
@@ -1077,7 +1022,9 @@ auto take_while(Pred&& pred) {
 // As above, but the predicate receives the index of the
 // element in the sequence as second argument.
 template<typename Pred>
-auto take_while_with_index(Pred&& pred) {
+auto take_while_with_index(Pred&& pred)
+    -> detail::take_impl<Pred>
+{
     return detail::take_impl<Pred>(std::forward<Pred>(pred));
 }
 
@@ -1086,20 +1033,19 @@ auto take_while_with_index(Pred&& pred) {
 
 // Operator that converts a sequence into a container of the given type.
 template<typename Container>
-auto to() {
-    return [](auto&& seq) {
-        return Container(std::begin(seq), std::end(seq));
-    };
+auto to()
+    -> detail::to_impl<Container>
+{
+    return detail::to_impl<Container>();
 }
 
 // Specialized version of the above for std::vector.
 // Auto-detects the element type from the sequence.
 template<typename = void>
-auto to_vector() {
-    return [](auto&& seq) {
-        return std::vector<typename detail::seq_traits<decltype(seq)>::raw_value_type>(
-            std::begin(seq), std::end(seq));
-    };
+auto to_vector()
+    -> detail::to_vector_impl<>
+{
+    return detail::to_vector_impl<>();
 }
 
 // Operator that converts a sequence into a specific type
@@ -1108,19 +1054,10 @@ auto to_vector() {
 // Associative type must support the insert_or_assign function.
 template<typename Container,
          typename KeySelector>
-auto to_associative(const KeySelector& key_sel) {
-    return [&key_sel](auto&& seq) {
-        Container c;
-        for (auto&& elem : seq) {
-            // #clp TODO replace this with insert_or_assign once available
-            auto key = key_sel(elem);
-            auto insert_res = c.insert(std::make_pair(key, elem));
-            if (!insert_res.second) {
-                insert_res.first->second = elem;
-            }
-        }
-        return c;
-    };
+auto to_associative(const KeySelector& key_sel)
+    -> detail::to_associative_impl_1<Container, KeySelector>
+{
+    return detail::to_associative_impl_1<Container, KeySelector>(key_sel);
 }
 
 // As above, but using an element selector to convert elements
@@ -1130,39 +1067,18 @@ template<typename Container,
          typename ElementSelector>
 auto to_associative(const KeySelector& key_sel,
                     const ElementSelector& elem_sel)
+    -> detail::to_associative_impl_2<Container, KeySelector, ElementSelector>
 {
-    return [&key_sel, &elem_sel](auto&& seq) {
-        Container c;
-        for (auto&& elem : seq) {
-            // #clp TODO replace this with insert_or_assign once available
-            auto key = key_sel(elem);
-            auto mapped = elem_sel(elem);
-            auto insert_res = c.insert(std::make_pair(key, mapped));
-            if (!insert_res.second) {
-                insert_res.first->second = mapped;
-            }
-        }
-        return c;
-    };
+    return detail::to_associative_impl_2<Container, KeySelector, ElementSelector>(key_sel, elem_sel);
 }
 
 // Specialized version of the above that returns an std::map.
 // Auto-detects the key and mapped types from the sequence and selector.
 template<typename KeySelector>
-auto to_map(const KeySelector& key_sel) {
-    return [&key_sel](auto&& seq) {
-        std::map<std::decay_t<decltype(key_sel(*std::begin(seq)))>,
-                 typename detail::seq_traits<decltype(seq)>::raw_value_type> m;
-        for (auto&& elem : seq) {
-            // #clp TODO replace this with insert_or_assign once available
-            auto key = key_sel(elem);
-            auto insert_res = m.insert(std::make_pair(key, elem));
-            if (!insert_res.second) {
-                insert_res.first->second = elem;
-            }
-        }
-        return m;
-    };
+auto to_map(const KeySelector& key_sel)
+    -> detail::to_map_impl_1<KeySelector>
+{
+    return detail::to_map_impl_1<KeySelector>(key_sel);
 }
 
 // As above, but using an element selector to convert elements
@@ -1171,21 +1087,9 @@ template<typename KeySelector,
          typename ElementSelector>
 auto to_map(const KeySelector& key_sel,
             const ElementSelector& elem_sel)
+    -> detail::to_map_impl_2<KeySelector, ElementSelector>
 {
-    return [&key_sel, &elem_sel](auto&& seq) {
-        std::map<std::decay_t<decltype(key_sel(*std::begin(seq)))>,
-                 std::decay_t<decltype(elem_sel(*std::begin(seq)))>> m;
-        for (auto&& elem : seq) {
-            // #clp TODO replace this with insert_or_assign once available
-            auto key = key_sel(elem);
-            auto mapped = elem_sel(elem);
-            auto insert_res = m.insert(std::make_pair(key, mapped));
-            if (!insert_res.second) {
-                insert_res.first->second = mapped;
-            }
-        }
-        return m;
-    };
+    return detail::to_map_impl_2<KeySelector, ElementSelector>(key_sel, elem_sel);
 }
 
 // C++ LINQ operator: union_with
@@ -1194,15 +1098,19 @@ auto to_map(const KeySelector& key_sel,
 // Operator that returns all elements that are found in either of two sequences,
 // excluding duplicates, Essentially a set union.
 template<typename Seq2>
-auto union_with(Seq2&& seq2) {
-    return detail::union_impl<Seq2, std::less<>>(std::forward<Seq2>(seq2),
-                                                 std::less<>());
+auto union_with(Seq2&& seq2)
+    -> detail::union_impl<Seq2, detail::less<>>
+{
+    return detail::union_impl<Seq2, detail::less<>>(std::forward<Seq2>(seq2),
+                                                    detail::less<>());
 }
 
 // Same as above, with a predicate to compare the elements.
 // The predicate must provide a strict ordering of the elements, like std::less.
 template<typename Seq2, typename Pred>
-auto union_with(Seq2&& seq2, Pred&& pred) {
+auto union_with(Seq2&& seq2, Pred&& pred)
+    -> detail::union_impl<Seq2, Pred>
+{
     return detail::union_impl<Seq2, Pred>(std::forward<Seq2>(seq2),
                                           std::forward<Pred>(pred));
 }
@@ -1213,7 +1121,9 @@ auto union_with(Seq2&& seq2, Pred&& pred) {
 // Operator that only returns elements of a sequence that
 // satisfy a given predicate.
 template<typename Pred>
-auto where(Pred&& pred) {
+auto where(Pred&& pred)
+    -> detail::where_impl<detail::indexless_selector_proxy<Pred>>
+{
     return detail::where_impl<detail::indexless_selector_proxy<Pred>>(
         detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)));
 }
@@ -1221,7 +1131,9 @@ auto where(Pred&& pred) {
 // As above, but the predicate receives the index of the
 // element as second argument.
 template<typename Pred>
-auto where_with_index(Pred&& pred) {
+auto where_with_index(Pred&& pred)
+    -> detail::where_impl<Pred>
+{
     return detail::where_impl<Pred>(std::forward<Pred>(pred));
 }
 
@@ -1234,7 +1146,9 @@ auto where_with_index(Pred&& pred) {
 // shortest of the two input sequences.
 template<typename Seq2,
          typename ResultSelector>
-auto zip(Seq2&& seq2, ResultSelector&& result_sel) {
+auto zip(Seq2&& seq2, ResultSelector&& result_sel)
+    -> detail::zip_impl<Seq2, ResultSelector>
+{
     return detail::zip_impl<Seq2, ResultSelector>(std::forward<Seq2>(seq2),
                                                   std::forward<ResultSelector>(result_sel));
 }

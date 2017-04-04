@@ -6,8 +6,7 @@
 #include <coveo/enumerable.h>
 #include <coveo/test_framework.h>
 
-#include <functional>
-#include <iterator>
+#include <list>
 #include <vector>
 
 namespace coveo_tests {
@@ -15,20 +14,87 @@ namespace enumerable {
 namespace detail {
 
 // Compares enumerable sequence with content of container
-template<typename T, typename C, typename Pr>
-void validate_sequence(const coveo::enumerable<T>& seq, const C& expected, const Pr& pr) {
+template<typename T, typename C>
+void validate_sequence(const coveo::enumerable<T>& seq, const C& expected, bool fast_size) {
     auto eit = std::begin(expected);
     auto eend = std::end(expected);
     for (auto&& obj : seq) {
         COVEO_ASSERT(eit != eend);
-        COVEO_ASSERT(pr(obj, *eit++));
+        COVEO_ASSERT(obj == *eit++);
     }
     COVEO_ASSERT(eit == eend);
+    COVEO_ASSERT(seq.has_fast_size() == fast_size);
+    COVEO_ASSERT(seq.size() == expected.size());
 }
-template<typename T, typename C>
-void validate_sequence(const coveo::enumerable<T>& seq, const C& expected) {
-    validate_sequence(seq, expected, std::equal_to<T>());
-}
+
+// Simple struct that cannot be copied.
+struct no_copy {
+    int i_;
+    no_copy(int i) : i_(i) { }
+    no_copy(const no_copy&) = delete;
+    no_copy& operator=(const no_copy&) = delete;
+    bool operator==(const no_copy& obj) const {
+        return i_ == obj.i_;
+    }
+};
+
+// Vector whose iterators don't return references
+template<typename T>
+class noref_vector {
+    std::vector<T> v_;
+public:
+    class const_iterator
+    {
+        typename std::vector<T>::const_iterator it_;
+    public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type = T;
+        using pointer = const T*;
+        using reference = T;
+        using difference_type = std::ptrdiff_t;
+
+        const_iterator()
+            : it_() { }
+        explicit const_iterator(const typename std::vector<T>::const_iterator& it)
+            : it_(it) { }
+
+        reference operator*() const {
+            return *it_;
+        }
+
+        const_iterator& operator++() {
+            ++it_;
+            return *this;
+        }
+        const_iterator operator++(int) {
+            const_iterator before(*this);
+            ++*this;
+            return before;
+        }
+
+        friend bool operator==(const const_iterator& left, const const_iterator& right) {
+            return left.it_ == right.it_;
+        }
+        friend bool operator!=(const const_iterator& left, const const_iterator& right) {
+            return left.it_ != right.it_;
+        }
+    };
+
+public:
+    noref_vector() : v_() { }
+    noref_vector(std::initializer_list<T> ilist) : v_(ilist) { }
+
+    void push_back(const T& obj) { v_.push_back(obj); }
+    void push_back(T&& obj) { v_.push_back(std::move(obj)); }
+
+    const_iterator begin() const { return const_iterator(v_.cbegin()); }
+    const_iterator end() const { return const_iterator(v_.cend()); }
+    const_iterator cbegin() const { return begin(); }
+    const_iterator cend() const { return end(); }
+
+    std::size_t size() const { return v_.size(); }
+    bool empty() const { return v_.empty(); }
+};
 
 } // detail
 
@@ -39,19 +105,33 @@ void enumerable_tests()
     {
         std::vector<int> vempty;
         auto empty_seq = coveo::enumerable<int>::empty();
-        detail::validate_sequence(empty_seq, vempty);
+        detail::validate_sequence(empty_seq, vempty, true);
+    }
+
+    // sequence defined by next delegate
+    {
+        std::vector<int> vi = { 42 };
+        auto seq_i = coveo::enumerable<int>([](std::unique_ptr<int>& upi) -> const int* {
+            if (upi == nullptr) {
+                upi.reset(new int(42));
+                return upi.get();
+            } else {
+                return nullptr;
+            }
+        });
+        detail::validate_sequence(seq_i, vi, false);
     }
 
     // sequence of one element
     {
         std::vector<int> vone = { 42 };
         auto seq_one = coveo::enumerable<int>::for_one(42);
-        detail::validate_sequence(seq_one, vone);
+        detail::validate_sequence(seq_one, vone, true);
     }
     {
         std::vector<int> vone = { 42 };
         auto seq_one = coveo::enumerate_one(42);
-        detail::validate_sequence(seq_one, vone);
+        detail::validate_sequence(seq_one, vone, true);
     }
     
     // sequence of one element held by ref
@@ -59,13 +139,13 @@ void enumerable_tests()
         const int hangar = 23;
         std::vector<int> vone = { 23 };
         auto seq_one_ref = coveo::enumerable<int>::for_one_ref(hangar);
-        detail::validate_sequence(seq_one_ref, vone);
+        detail::validate_sequence(seq_one_ref, vone, true);
     }
     {
         const int hangar = 23;
         std::vector<int> vone = { 23 };
         auto seq_one_ref = coveo::enumerate_one_ref(hangar);
-        detail::validate_sequence(seq_one_ref, vone);
+        detail::validate_sequence(seq_one_ref, vone, true);
     }
 
     // sequence bound by iterators
@@ -73,59 +153,50 @@ void enumerable_tests()
         std::vector<int> vforseq = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_range = coveo::enumerable<int>::for_range(vforseq.cbegin(), vforseq.cend());
-        detail::validate_sequence(seq_range, vexpected);
+        detail::validate_sequence(seq_range, vexpected, true);
     }
     {
         std::vector<int> vforseq = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_range = coveo::enumerate_range(vforseq.cbegin(), vforseq.cend());
-        detail::validate_sequence(seq_range, vexpected);
+        detail::validate_sequence(seq_range, vexpected, true);
     }
 
-    // sequence stored in container (not copied)
+    // sequence stored in container (externally)
+    {
+        std::vector<int> vcnt = { 42, 23, 66 };
+        std::vector<int> vexpected = { 42, 23, 66 };
+        auto seq_cnt = coveo::enumerable<int>(vcnt);
+        detail::validate_sequence(seq_cnt, vexpected, true);
+    }
     {
         std::vector<int> vcnt = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt = coveo::enumerable<int>::for_container(vcnt);
-        detail::validate_sequence(seq_cnt, vexpected);
+        detail::validate_sequence(seq_cnt, vexpected, true);
     }
     {
         std::vector<int> vcnt = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt = coveo::enumerate_container(vcnt);
-        detail::validate_sequence(seq_cnt, vexpected);
+        detail::validate_sequence(seq_cnt, vexpected, true);
     }
 
-    // sequence stored in container (copied)
+    // sequence stored in container (internally)
     {
-        coveo::enumerable<int> seq_cnt_cp;
-        {
-            std::vector<int> vcnt = { 42, 23, 66 };
-            seq_cnt_cp = coveo::enumerable<int>::for_container(vcnt, true);
-        }
         std::vector<int> vexpected = { 42, 23, 66 };
-        detail::validate_sequence(seq_cnt_cp, vexpected);
+        auto seq_cnt_mv = coveo::enumerable<int>(std::vector<int> { 42, 23, 66 });
+        detail::validate_sequence(seq_cnt_mv, vexpected, true);
     }
-    {
-        coveo::enumerable<int> seq_cnt_cp;
-        {
-            std::vector<int> vcnt = { 42, 23, 66 };
-            seq_cnt_cp = coveo::enumerate_container(vcnt, true);
-        }
-        std::vector<int> vexpected = { 42, 23, 66 };
-        detail::validate_sequence(seq_cnt_cp, vexpected);
-    }
-
-    // sequence stored in container (moved)
     {
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt_mv = coveo::enumerable<int>::for_container(std::vector<int> { 42, 23, 66 });
-        detail::validate_sequence(seq_cnt_mv, vexpected);
+        detail::validate_sequence(seq_cnt_mv, vexpected, true);
     }
     {
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt_mv = coveo::enumerate_container(std::vector<int> { 42, 23, 66 });
-        detail::validate_sequence(seq_cnt_mv, vexpected);
+        detail::validate_sequence(seq_cnt_mv, vexpected, true);
     }
 
     // sequence in array
@@ -134,14 +205,39 @@ void enumerable_tests()
         const size_t arr_size = sizeof(arr) / sizeof(arr[0]);
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_arr = coveo::enumerable<int>::for_array(arr, arr_size);
-        detail::validate_sequence(seq_arr, vexpected);
+        detail::validate_sequence(seq_arr, vexpected, true);
     }
     {
         const int arr[] = { 42, 23, 66 };
         const size_t arr_size = sizeof(arr) / sizeof(arr[0]);
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_arr = coveo::enumerate_array(arr, arr_size);
-        detail::validate_sequence(seq_arr, vexpected);
+        detail::validate_sequence(seq_arr, vexpected, true);
+    }
+
+    // Objects that cannot be copied
+    {
+        detail::no_copy an_obj(42);
+        bool avail = true;
+        auto seq = coveo::enumerable<detail::no_copy>([&an_obj, avail](std::unique_ptr<detail::no_copy>&) mutable {
+            detail::no_copy* pobj = nullptr;
+            if (avail) {
+                pobj = &an_obj;
+                avail = false;
+            }
+            return pobj;
+        });
+        std::list<detail::no_copy> lexpected;
+        lexpected.emplace_back(42);
+        detail::validate_sequence(seq, lexpected, false);
+    }
+
+    // sequence with iterator returning non-reference
+    {
+        detail::noref_vector<int> vcnt = { 42, 23, 66 };
+        std::vector<int> vexpected = { 42, 23, 66 };
+        auto seq_cnt = coveo::enumerate_container(vcnt);
+        detail::validate_sequence(seq_cnt, vexpected, true);
     }
 }
 

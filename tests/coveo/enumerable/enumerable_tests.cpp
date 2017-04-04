@@ -58,9 +58,8 @@ public:
         explicit const_iterator(const typename std::vector<T>::const_iterator& it)
             : it_(it) { }
 
-        T operator*() const {
-            T t = *it_;
-            return t;
+        reference operator*() const {
+            return *it_;
         }
 
         const_iterator& operator++() {
@@ -233,16 +232,13 @@ void enumerable_tests()
         detail::validate_sequence(seq, lexpected, false);
     }
 
-#if 0
     // sequence with iterator returning non-reference
     {
         detail::noref_vector<int> vcnt = { 42, 23, 66 };
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt = coveo::enumerate_container(vcnt);
-        auto seq_it = coveo::enumerate_range(seq_cnt.begin(), seq_cnt.end());
-        detail::validate_sequence(seq_it, vexpected, false);
+        detail::validate_sequence(seq_cnt, vexpected, true);
     }
-#endif
 }
 
 } // enumerable

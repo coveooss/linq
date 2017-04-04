@@ -119,6 +119,7 @@ std::unique_ptr<T> make_unique(Args&&... args) {
 
 // Helper that reserves space in a container based on the number of elements in a sequence
 // If it's possible to do so quickly (e.g. with random-access iterators or size())
+void try_reserve(...);
 template<typename C, typename Seq>
 auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<coveo::detail::is_enumerable<Seq>::value, void>::type
 {
@@ -151,6 +152,7 @@ auto try_reserve(C&, const Seq&) -> typename std::enable_if<!coveo::detail::has_
 
 // Helper that returns a size_delegate for a sequence if it's possible to quickly calculate
 // its size (e.g. with random-access iterators or size())
+void try_get_size_delegate(...);
 template<typename T, typename Seq>
 auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<coveo::detail::is_enumerable<Seq>::value,
                                                                       typename coveo::enumerable<T>::size_delegate>::type
@@ -364,18 +366,19 @@ public:
             }
 
             // Returns next element from one of the sequences or nullptr when done
-            auto get_next(first_iterator_type& icur1, second_iterator_type& icur2)
+            auto get_next(first_iterator_type& icur1, second_iterator_type& icur2,
+                          std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
                 -> typename seq_traits<Seq1>::const_pointer
             {
                 // First return all elements from first sequence, then from second sequence.
                 typename seq_traits<Seq1>::const_pointer pobj = nullptr;
                 if (icur1 != iend1_) {
-                    typename seq_traits<Seq1>::const_reference robj = *icur1;
-                    pobj = std::addressof(robj);
+                    pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq1>::const_reference,
+                                                                typename seq_traits<Seq1>::const_pointer>(icur1, upopt);
                     ++icur1;
                 } else if (icur2 != iend2_) {
-                    typename seq_traits<Seq2>::const_reference robj = *icur2;
-                    pobj = std::addressof(robj);
+                    pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq2>::const_reference,
+                                                                typename seq_traits<Seq2>::const_pointer>(icur2, upopt);
                     ++icur2;
                 }
                 return pobj;
@@ -392,11 +395,10 @@ public:
             : spinfo_(std::make_shared<concat_info>(std::forward<Seq1>(seq1), std::forward<Seq2>(seq2))),
               icur1_(spinfo_->first_begin()), icur2_(spinfo_->second_begin()) { }
 
-        template<typename Op>
-        auto operator()(Op&)
-            -> decltype(spinfo_->get_next(icur1_, icur2_))
+        auto operator()(std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
+            -> decltype(spinfo_->get_next(icur1_, icur2_, upopt))
         {
-            return spinfo_->get_next(icur1_, icur2_);
+            return spinfo_->get_next(icur1_, icur2_, upopt);
         }
     };
 
@@ -622,15 +624,17 @@ public:
             }
 
             // Returns next distinct element or nullptr when done
-            auto get_next(iterator_type& icur, seen_elements_set& seen)
+            auto get_next(iterator_type& icur, seen_elements_set& seen,
+                          std::unique_ptr<typename seq_traits<Seq>::raw_value_type>& upopt)
                 -> typename seq_traits<Seq>::const_pointer
             {
                 typename seq_traits<Seq>::const_pointer pobj = nullptr;
                 for (; pobj == nullptr && icur != iend_; ++icur) {
-                    typename seq_traits<Seq>::const_reference robj = *icur;
-                    if (seen.emplace(robj).second) {
+                    auto pobjtmp = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq>::const_reference,
+                                                                        typename seq_traits<Seq>::const_pointer>(icur, upopt);
+                    if (seen.emplace(*pobjtmp).second) {
                         // Not seen yet, return this element.
-                        pobj = std::addressof(robj);
+                        pobj = pobjtmp;
                     }
                 }
                 return pobj;
@@ -647,11 +651,10 @@ public:
             : spinfo_(std::make_shared<distinct_info>(std::forward<Seq>(seq), std::forward<Pred>(pred))),
               icur_(spinfo_->seq_begin()), seen_(spinfo_->init_seen_elements()) { }
 
-        template<typename Op>
-        auto operator()(Op&)
-            -> decltype(spinfo_->get_next(icur_, seen_))
+        auto operator()(std::unique_ptr<typename seq_traits<Seq>::raw_value_type>& upopt)
+            -> decltype(spinfo_->get_next(icur_, seen_, upopt))
         {
-            return spinfo_->get_next(icur_, seen_);
+            return spinfo_->get_next(icur_, seen_, upopt);
         }
     };
 
@@ -817,6 +820,7 @@ public:
             bool filtered(typename seq_traits<Seq1>::const_reference obj) {
                 if (!init_) {
                     // Init elements to filter on first call
+                    try_reserve(v_to_filter_, seq2_);
                     v_to_filter_.insert(v_to_filter_.end(), std::begin(seq2_), std::end(seq2_));
                     std::sort(v_to_filter_.begin(), v_to_filter_.end(), pred_);
                     init_ = true;
@@ -825,14 +829,15 @@ public:
             }
 
             // Returns next non-filtered element or nullptr when done
-            auto get_next(first_iterator_type& icur1)
+            auto get_next(first_iterator_type& icur1, std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
                 -> typename seq_traits<Seq1>::const_pointer
             {
                 typename seq_traits<Seq1>::const_pointer pobj = nullptr;
                 for (; pobj == nullptr && icur1 != iend1_; ++icur1) {
-                    typename seq_traits<Seq1>::const_reference robj = *icur1;
-                    if (!filtered(robj)) {
-                        pobj = std::addressof(robj);
+                    auto pobjtmp = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq1>::const_reference,
+                                                                        typename seq_traits<Seq1>::const_pointer>(icur1, upopt);
+                    if (!filtered(*pobjtmp)) {
+                        pobj = pobjtmp;
                     }
                 }
                 return pobj;
@@ -850,11 +855,10 @@ public:
                                                       std::forward<Pred>(pred))),
               icur_(spfilter_->first_begin()) { }
 
-        template<typename Op>
-        auto operator()(Op&)
-            -> decltype(spfilter_->get_next(icur_))
+        auto operator()(std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
+            -> decltype(spfilter_->get_next(icur_, upopt))
         {
-            return spfilter_->get_next(icur_);
+            return spfilter_->get_next(icur_, upopt);
         }
     };
 
@@ -1362,14 +1366,15 @@ public:
             }
 
             // Returns next element that is both in first and second sequence or nullptr when done
-            auto get_next(first_iterator_type& icur1)
+            auto get_next(first_iterator_type& icur1, std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
                 -> typename seq_traits<Seq1>::const_pointer
             {
                 typename seq_traits<Seq1>::const_pointer pobj = nullptr;
                 for (; pobj == nullptr && icur1 != iend1_; ++icur1) {
-                    typename seq_traits<Seq1>::const_reference robj = *icur1;
-                    if (is_in_seq2(robj)) {
-                        pobj = std::addressof(robj);
+                    auto pobjtmp = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq1>::const_reference,
+                                                                        typename seq_traits<Seq1>::const_pointer>(icur1, upopt);
+                    if (is_in_seq2(*pobjtmp)) {
+                        pobj = pobjtmp;
                     }
                 }
                 return pobj;
@@ -1387,11 +1392,10 @@ public:
                                                            std::forward<Pred>(pred))),
               icur_(spint_info_->first_begin()) { }
 
-        template<typename Op>
-        auto operator()(Op&)
-            -> decltype(spint_info_->get_next(icur_))
+        auto operator()(std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
+            -> decltype(spint_info_->get_next(icur_, upopt))
         {
-            return spint_info_->get_next(icur_);
+            return spint_info_->get_next(icur_, upopt);
         }
     };
 
@@ -2124,12 +2128,8 @@ public:
         auto operator()(std::unique_ptr<U>& upopt) -> const U* {
             const U* pobj = nullptr;
             if (icur_ != spinfo_->iend_) {
-                if (upopt != nullptr) {
-                    *upopt = spinfo_->sel_(*icur_, idx_);
-                } else {
-                    upopt.reset(new U(spinfo_->sel_(*icur_, idx_)));
-                }
-                pobj = std::addressof(*upopt);
+                coveo::detail::assign_in_upopt(upopt, spinfo_->sel_(*icur_, idx_));
+                pobj = upopt.get();
                 ++icur_;
                 ++idx_;
             }
@@ -2217,12 +2217,8 @@ public:
                 ++idx_;
             }
             if (!cache_.empty()) {
-                if (upopt != nullptr) {
-                    *upopt = cache_.front();
-                } else {
-                    upopt.reset(new U(cache_.front()));
-                }
-                pobj = std::addressof(*upopt);
+                coveo::detail::assign_in_upopt(upopt, cache_.front());
+                pobj = upopt.get();
                 cache_.pop_front();
             }
             return pobj;
@@ -2469,8 +2465,7 @@ public:
                                                   std::forward<Pred>(pred))),
               icur_(), init_flag_(false) { }
 
-        template<typename Op>
-        auto operator()(Op&)
+        auto operator()(std::unique_ptr<typename seq_traits<Seq>::raw_value_type>& upopt)
             -> typename seq_traits<Seq>::const_pointer
         {
             // Init starting point on first call
@@ -2484,8 +2479,8 @@ public:
             }
             typename seq_traits<Seq>::const_pointer pobj = nullptr;
             if (icur_ != spinfo_->iend_) {
-                typename seq_traits<Seq>::const_reference robj = *icur_;
-                pobj = std::addressof(robj);
+                pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq>::const_reference,
+                                                            typename seq_traits<Seq>::const_pointer>(icur_, upopt);
                 ++icur_;
             }
             return pobj;
@@ -2590,8 +2585,7 @@ public:
                                                   std::forward<Pred>(pred))),
               icur_(), itake_end_(), init_flag_(false) { }
 
-        template<typename Op>
-        auto operator()(Op&)
+        auto operator()(std::unique_ptr<typename seq_traits<Seq>::raw_value_type>& upopt)
             -> typename seq_traits<Seq>::const_pointer
         {
             // Init last point on first call
@@ -2606,8 +2600,8 @@ public:
             }
             typename seq_traits<Seq>::const_pointer pobj = nullptr;
             if (icur_ != itake_end_) {
-                typename seq_traits<Seq>::const_reference robj = *icur_;
-                pobj = std::addressof(robj);
+                pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq>::const_reference,
+                                                            typename seq_traits<Seq>::const_pointer>(icur_, upopt);
                 ++icur_;
             }
             return pobj;
@@ -2649,7 +2643,7 @@ class to_impl
 public:
     template<typename Seq>
     auto operator()(Seq&& seq) -> Container {
-        return Container(std::begin(seq), std::end(seq));
+        return Container(std::begin(std::forward<Seq>(seq)), std::end(std::forward<Seq>(seq)));
     }
 };
 
@@ -2660,7 +2654,10 @@ class to_vector_impl
 public:
     template<typename Seq>
     auto operator()(Seq&& seq) -> std::vector<typename seq_traits<Seq>::raw_value_type> {
-        return std::vector<typename seq_traits<Seq>::raw_value_type>(std::begin(seq), std::end(seq));
+        std::vector<typename seq_traits<Seq>::raw_value_type> v;
+        try_reserve(v, seq);
+        v.insert(v.end(), std::begin(std::forward<Seq>(seq)), std::end(std::forward<Seq>(seq)));
+        return v;
     }
 };
 
@@ -2831,24 +2828,27 @@ public:
             }
 
             // Returns next distinct element in either sequence or nullptr when done
-            auto get_next(first_iterator_type& icur1, second_iterator_type& icur2, seen_elements_set& seen)
+            auto get_next(first_iterator_type& icur1, second_iterator_type& icur2, seen_elements_set& seen,
+                          std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
                 -> typename seq_traits<Seq1>::const_pointer
             {
                 // First look for an element in first sequence
                 typename seq_traits<Seq1>::const_pointer pobj = nullptr;
                 for (; pobj == nullptr && icur1 != iend1_; ++icur1) {
-                    typename seq_traits<Seq1>::const_reference robj = *icur1;
-                    if (seen.emplace(robj).second) {
+                    auto pobjtmp = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq1>::const_reference,
+                                                                        typename seq_traits<Seq1>::const_pointer>(icur1, upopt);
+                    if (seen.emplace(*pobjtmp).second) {
                         // Not seen yet, return this element.
-                        pobj = std::addressof(robj);
+                        pobj = pobjtmp;
                     }
                 }
 
                 // If we did not find an element in first sequence, try in second sequence
                 for (; pobj == nullptr && icur2 != iend2_; ++icur2) {
-                    typename seq_traits<Seq2>::const_reference robj = *icur2;
-                    if (seen.emplace(robj).second) {
-                        pobj = std::addressof(robj);
+                    auto pobjtmp = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq2>::const_reference,
+                                                                        typename seq_traits<Seq2>::const_pointer>(icur2, upopt);
+                    if (seen.emplace(*pobjtmp).second) {
+                        pobj = pobjtmp;
                     }
                 }
                 return pobj;
@@ -2870,11 +2870,10 @@ public:
               icur2_(spinfo_->second_begin()),
               seen_(spinfo_->init_seen_elements()) { }
 
-        template<typename Op>
-        auto operator()(Op&)
-            -> decltype(spinfo_->get_next(icur1_, icur2_, seen_))
+        auto operator()(std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
+            -> decltype(spinfo_->get_next(icur1_, icur2_, seen_, upopt))
         {
-            return spinfo_->get_next(icur1_, icur2_, seen_);
+            return spinfo_->get_next(icur1_, icur2_, seen_, upopt);
         }
     };
 
@@ -2957,14 +2956,16 @@ public:
                                                    std::forward<Pred>(pred))),
               icur_(std::begin(spinfo_->seq_)), idx_(0) { }
 
-        template<typename Op>
-        auto operator()(Op&) -> typename seq_traits<Seq>::const_pointer {
+        auto operator()(std::unique_ptr<typename seq_traits<Seq>::raw_value_type>& upopt)
+            -> typename seq_traits<Seq>::const_pointer
+        {
             typename seq_traits<Seq>::const_pointer pobj = nullptr;
             for (; pobj == nullptr && icur_ != spinfo_->iend_; ++icur_, ++idx_) {
-                typename seq_traits<Seq>::const_reference robj = *icur_;
-                if (spinfo_->pred_(robj, idx_)) {
+                auto pobjtmp = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq>::const_reference,
+                                                                    typename seq_traits<Seq>::const_pointer>(icur_, upopt);
+                if (spinfo_->pred_(*pobjtmp, idx_)) {
                     // This element satistifies the predicate, return it.
-                    pobj = std::addressof(robj);
+                    pobj = pobjtmp;
                 }
             }
             return pobj;
@@ -3056,12 +3057,8 @@ public:
         auto operator()(std::unique_ptr<U>& upopt) -> const U* {
             const U* pobj = nullptr;
             if (icur1_ != spinfo_->iend1_ && icur2_ != spinfo_->iend2_) {
-                if (upopt != nullptr) {
-                    *upopt = spinfo_->result_sel_(*icur1_, *icur2_);
-                } else {
-                    upopt.reset(new U(spinfo_->result_sel_(*icur1_, *icur2_)));
-                }
-                pobj = std::addressof(*upopt);
+                coveo::detail::assign_in_upopt(upopt, spinfo_->result_sel_(*icur1_, *icur2_));
+                pobj = upopt.get();
                 ++icur1_;
                 ++icur2_;
             }

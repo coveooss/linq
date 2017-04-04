@@ -30,7 +30,65 @@ bool equal(It1 ibeg1, It1 iend1, It2 ibeg2, It2 iend2) {
            std::equal(ibeg1, iend1, ibeg2);
 };
 
-}
+// Vector whose iterators don't return references
+template<typename T>
+class noref_vector {
+    std::vector<T> v_;
+public:
+    class const_iterator
+    {
+        typename std::vector<T>::const_iterator it_;
+    public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type = T;
+        using pointer = const T*;
+        using reference = T;
+        using difference_type = std::ptrdiff_t;
+
+        const_iterator()
+            : it_() { }
+        explicit const_iterator(const typename std::vector<T>::const_iterator& it)
+            : it_(it) { }
+
+        reference operator*() const {
+            return *it_;
+        }
+
+        const_iterator& operator++() {
+            ++it_;
+            return *this;
+        }
+        const_iterator operator++(int) {
+            const_iterator before(*this);
+            ++*this;
+            return before;
+        }
+
+        friend bool operator==(const const_iterator& left, const const_iterator& right) {
+            return left.it_ == right.it_;
+        }
+        friend bool operator!=(const const_iterator& left, const const_iterator& right) {
+            return left.it_ != right.it_;
+        }
+    };
+
+public:
+    noref_vector() : v_() { }
+    noref_vector(std::initializer_list<T> ilist) : v_(ilist) { }
+
+    void push_back(const T& obj) { v_.push_back(obj); }
+    void push_back(T&& obj) { v_.push_back(std::move(obj)); }
+
+    const_iterator begin() const { return const_iterator(v_.cbegin()); }
+    const_iterator end() const { return const_iterator(v_.cend()); }
+    const_iterator cbegin() const { return begin(); }
+    const_iterator cend() const { return end(); }
+
+    std::size_t size() const { return v_.size(); }
+    bool empty() const { return v_.empty(); }
+};
+
+} // detail
 
 // Run all tests for coveo::linq operators
 void linq_tests()
@@ -162,7 +220,7 @@ void linq_tests()
     // concat
     {
         const std::vector<int> a = { 42, 23 };
-        const std::vector<int> b = { 66, 67 };
+        const detail::noref_vector<int> b = { 66, 67 };
         const std::vector<int> ab = { 42, 23, 66, 67, 11, 7 };
 
         using namespace coveo::linq;
@@ -220,6 +278,7 @@ void linq_tests()
     // distinct
     {
         const std::vector<int> v = { 42, 23, 66, 42, 67, 66, 23, 11 };
+        const detail::noref_vector<int> v2 = { 42, 23, 66, 42, 67, 66, 23, 11 };
         const std::vector<int> v_no_dup = { 42, 23, 66, 67, 11 };
 
         using namespace coveo::linq;
@@ -230,7 +289,7 @@ void linq_tests()
         COVEO_ASSERT(!no_dup.has_fast_size());
         COVEO_ASSERT(no_dup.size() == v_no_dup.size());
 
-        auto no_dup_2 = from(v)
+        auto no_dup_2 = from(v2)
                       | distinct([](int i, int j) { return i > j; });
         COVEO_ASSERT(detail::equal(std::begin(no_dup_2), std::end(no_dup_2),
                                    std::begin(v_no_dup), std::end(v_no_dup)));
@@ -258,7 +317,7 @@ void linq_tests()
 
     // except
     {
-        const std::vector<int> v = { 42, 23, 66, 42, 23, 67, 11, 66, 7 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 42, 23, 67, 11, 66, 7 };
         const std::vector<int> not_v = { 66, 23, 11 };
         const std::vector<int> res = { 42, 42, 67, 7 };
 
@@ -326,7 +385,7 @@ void linq_tests()
     }
     {
         enum class oddity { odd = 1, even = 2 };
-        const std::vector<int> v = { 42, 23, 66, 11, 7 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 7 };
         const std::vector<int> odd_group = { 23, 11, 7 };
         const std::vector<int> even_group = { 42, 66 };
 
@@ -378,7 +437,7 @@ void linq_tests()
     }
     {
         enum class oddity { odd = 1, even = 2 };
-        const std::vector<int> v = { 42, 23, 66, 11, 7 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 7 };
         const std::vector<int> odd_group = { 230, 110, 70 };
         const std::vector<int> even_group = { 420, 660 };
 
@@ -419,7 +478,7 @@ void linq_tests()
     }
     {
         enum class oddity { odd = 1, even = 2 };
-        const std::vector<int> v = { 42, 23, 66, 11, 7 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 7 };
         const std::vector<int> size_by_oddity_v = { 2, 3 };
         using namespace coveo::linq;
         auto res = from(v)
@@ -449,7 +508,7 @@ void linq_tests()
     }
     {
         enum class oddity { odd = 1, even = 2 };
-        const std::vector<int> v = { 42, 23, 66, 11, 7 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 7 };
         const std::vector<int> somewhat_size_by_oddity_v = { 422, 233 };
         using namespace coveo::linq;
         auto res = from(v)
@@ -471,7 +530,7 @@ void linq_tests()
     {
         enum class oddity { odd = 1, even = 2 };
         const std::vector<int> out_v = { 42, 23, 66 };
-        const std::vector<int> in_v = { 11, 7, 6, 66, 9, 22 };
+        const detail::noref_vector<int> in_v = { 11, 7, 6, 66, 9, 22 };
         const std::vector<int> in_odd_v = { 11, 7, 9 };
         const std::vector<int> in_even_v = { 6, 66, 22 };
         const std::vector<std::tuple<int, const std::vector<int>&>> expected = {
@@ -502,7 +561,7 @@ void linq_tests()
     }
     {
         enum class oddity { odd = 1, even = 2 };
-        const std::vector<int> out_v = { 42, 23, 66 };
+        const detail::noref_vector<int> out_v = { 42, 23, 66 };
         const std::vector<int> in_v = { 11, 7, 6, 66, 9, 22 };
         const std::vector<int> in_odd_v = { 11, 7, 9 };
         const std::vector<int> in_even_v = { 6, 66, 22 };
@@ -537,7 +596,7 @@ void linq_tests()
 
     // intersect
     {
-        const std::vector<int> v1 = { 42, 23, 66, 11 };
+        const detail::noref_vector<int> v1 = { 42, 23, 66, 11 };
         const std::vector<int> v2 = { 11, 7, 67, 42, 22 };
         const std::vector<int> expected = { 42, 11 };
 
@@ -551,7 +610,7 @@ void linq_tests()
     }
     {
         const std::vector<int> v1 = { 42, 23, 66, 11 };
-        const std::vector<int> v2 = { 11, 7, 67, 42, 22 };
+        const detail::noref_vector<int> v2 = { 11, 7, 67, 42, 22 };
         const std::vector<int> expected = { 42, 11 };
 
         using namespace coveo::linq;
@@ -567,7 +626,7 @@ void linq_tests()
     {
         enum class oddity { odd = 1, even = 2 };
         const std::vector<int> out_v = { 42, 23, 66 };
-        const std::vector<int> in_v = { 11, 7, 6, 66, 9, 22 };
+        const detail::noref_vector<int> in_v = { 11, 7, 6, 66, 9, 22 };
         const std::vector<std::tuple<int, int>> expected = {
             std::make_tuple(42, 6), std::make_tuple(42, 66), std::make_tuple(42, 22),
             std::make_tuple(23, 11), std::make_tuple(23, 7), std::make_tuple(23, 9),
@@ -590,7 +649,7 @@ void linq_tests()
     }
     {
         enum class oddity { odd = 1, even = 2 };
-        const std::vector<int> out_v = { 42, 23, 66 };
+        const detail::noref_vector<int> out_v = { 42, 23, 66 };
         const std::vector<int> in_v = { 11, 7, 6, 66, 9, 22 };
         const std::vector<std::tuple<int, int>> expected = {
             std::make_tuple(42, 6), std::make_tuple(42, 66), std::make_tuple(42, 22),
@@ -696,7 +755,7 @@ void linq_tests()
         COVEO_ASSERT(seq.size() == expected.size());
     }
     {
-        const std::vector<int> v = { 42, 23, 66, 11, 24 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> expected = { 66, 42, 24, 23, 11 };
 
         using namespace coveo::linq;
@@ -720,7 +779,7 @@ void linq_tests()
         COVEO_ASSERT(seq.size() == expected.size());
     }
     {
-        const std::vector<int> v = { 42, 23, 66, 11, 24 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> expected = { 11, 23, 24, 42, 66 };
 
         using namespace coveo::linq;
@@ -747,8 +806,8 @@ void linq_tests()
         COVEO_ASSERT(seq.size() == expected.size());
     }
     {
-        const std::vector<std::string> v = { "grape", "passionfruit", "banana", "mango",
-                                             "orange", "raspberry", "apple", "blueberry" };
+        const detail::noref_vector<std::string> v = { "grape", "passionfruit", "banana", "mango",
+                                                      "orange", "raspberry", "apple", "blueberry" };
         const std::vector<std::string> expected = { "passionfruit", "raspberry", "blueberry",
                                                     "orange", "banana", "mango", "grape", "apple" };
 
@@ -811,7 +870,7 @@ void linq_tests()
         COVEO_ASSERT(seq.size() == expected.size());
     }
     {
-        const std::vector<int> v = { 42, 23, 66 };
+        const detail::noref_vector<int> v = { 42, 23, 66 };
         const std::vector<std::string> expected = { "43", "2525", "696969" };
         auto our_itoa = [](int i, std::size_t idx) -> std::string {
             std::ostringstream oss;
@@ -857,7 +916,7 @@ void linq_tests()
         COVEO_ASSERT(seq.size() == expected.size());
     }
     {
-        const std::vector<int> v = { 42, 23, 66 };
+        const detail::noref_vector<int> v = { 42, 23, 66 };
         const std::vector<std::string> expected = { "43", "34", "25", "52", "69", "96" };
         auto our_itoa = [](int i, std::size_t idx) {
             std::vector<std::string> ov;
@@ -949,7 +1008,7 @@ void linq_tests()
 
     // skip
     {
-        const std::vector<int> v = { 42, 23, 66, 11, 24 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> last_two = { 11, 24 };
         const std::vector<int> none;
 
@@ -989,7 +1048,7 @@ void linq_tests()
         COVEO_ASSERT(e_after_90.size() == none.size());
     }
     {
-        const std::vector<int> v = { 42, 23, 66, 11, 24 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> v_66_and_up = { 66, 11, 24 };
         const std::vector<int> v_24_and_up = { 24 };
 
@@ -1031,7 +1090,7 @@ void linq_tests()
 
     // take
     {
-        const std::vector<int> v = { 42, 23, 66, 11, 24 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> first_three = { 42, 23, 66 };
         const std::vector<int> none;
 
@@ -1070,7 +1129,7 @@ void linq_tests()
         COVEO_ASSERT(e_before_90.size() == v.size());
     }
     {
-        const std::vector<int> v = { 42, 23, 66, 11, 24 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 24 };
         const std::vector<int> v_before_66 = { 42, 23 };
         const std::vector<int> v_before_5th = { 42, 23, 66, 11 };
 
@@ -1177,7 +1236,7 @@ void linq_tests()
 
     // union_with
     {
-        const std::vector<int> v1 = { 42, 23, 66, 42, 67, 66, 23, 11 };
+        const detail::noref_vector<int> v1 = { 42, 23, 66, 42, 67, 66, 23, 11 };
         const std::vector<int> v2 = { 11, 7, 67, 24, 44, 42, 44 };
         const std::vector<int> v_union = { 42, 23, 66, 67, 11, 7, 24, 44 };
 
@@ -1199,7 +1258,7 @@ void linq_tests()
 
     // where/where_with_index
     {
-        const std::vector<int> v = { 42, 23, 66, 11, 7, 24 };
+        const detail::noref_vector<int> v = { 42, 23, 66, 11, 7, 24 };
         const std::vector<int> expected_odd = { 23, 11, 7 };
         const std::vector<int> expected_div_3 = { 42, 66, 24 };
         auto is_odd = [](int i) { return i % 2 != 0; };
@@ -1236,7 +1295,7 @@ void linq_tests()
 
     // zip
     {
-        const std::vector<int> v1 = { 42, 23, 66 };
+        const detail::noref_vector<int> v1 = { 42, 23, 66 };
         const std::vector<int> v2 = { 11, 7, 24, 67 };
         const std::vector<int> expected = { 53, 30, 90 };
         auto add = [](int i, int j) { return i + j; };
@@ -1407,4 +1466,4 @@ void linq_benchmarks()
 }
 
 } // linq
-} // namespace coveo_tests
+} // coveo_tests

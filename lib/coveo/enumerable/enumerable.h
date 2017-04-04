@@ -269,11 +269,10 @@ public:
     static enumerable<T> for_range(ItBeg&& ibeg, ItEnd&& iend) {
         auto it = std::forward<ItBeg>(ibeg);
         auto end = std::forward<ItEnd>(iend);
-        return enumerable<T>([it, end](std::unique_ptr<T>&) mutable {
+        return enumerable<T>([it, end](std::unique_ptr<T>& upopt) mutable {
             pointer pobj = nullptr;
             if (it != end) {
-                reference robj = *it;
-                pobj = std::addressof(robj);
+                pobj = detail::get_ref_from_iterator<reference, pointer>(it, upopt);
                 ++it;
             }
             return pobj;
@@ -285,11 +284,10 @@ public:
     static enumerable<T> for_container(const C& cnt) {
         auto it = std::begin(cnt);
         auto end = std::end(cnt);
-        return enumerable<T>([it, end](std::unique_ptr<T>&) mutable {
+        return enumerable<T>([it, end](std::unique_ptr<T>& upopt) mutable {
             pointer pobj = nullptr;
             if (it != end) {
-                reference robj = *it;
-                pobj = std::addressof(robj);
+                pobj = detail::get_ref_from_iterator<reference, pointer>(it, upopt);
                 ++it;
             }
             return pobj;
@@ -305,11 +303,10 @@ public:
         auto spcnt = std::make_shared<const C>(std::move(cnt));
         auto it = std::begin(*spcnt);
         auto end = std::end(*spcnt);
-        return enumerable<T>([spcnt, it, end](std::unique_ptr<T>&) mutable {
+        return enumerable<T>([spcnt, it, end](std::unique_ptr<T>& upopt) mutable {
             pointer pobj = nullptr;
             if (it != end) {
-                reference robj = *it;
-                pobj = std::addressof(robj);
+                pobj = detail::get_ref_from_iterator<reference, pointer>(it, upopt);
                 ++it;
             }
             return pobj;

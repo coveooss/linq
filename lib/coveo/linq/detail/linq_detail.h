@@ -324,6 +324,17 @@ public:
     }
 };
 
+// Selector implementation used by cast operator.
+template<typename U>
+class cast_selector
+{
+public:
+    template<typename T>
+    auto operator()(T&& obj) const -> U {
+        return static_cast<U>(obj);
+    }
+};
+
 // Implementation of concat operator.
 template<typename Seq2>
 class concat_impl

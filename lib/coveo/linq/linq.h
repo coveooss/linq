@@ -169,6 +169,19 @@ auto average(const F& num_f)
     return detail::average_impl<F>(num_f);
 }
 
+// C++ LINQ operator: cast
+// .NET equivalent: Cast
+
+// Operator that casts (using static_cast) the elements
+// in a sequence to a different type.
+template<typename U>
+auto cast()
+    -> detail::select_impl<detail::indexless_selector_proxy<detail::cast_selector<U>>>
+{
+    return detail::select_impl<detail::indexless_selector_proxy<detail::cast_selector<U>>>(
+        detail::indexless_selector_proxy<detail::cast_selector<U>>(detail::cast_selector<U>()));
+}
+
 // C++ LINQ operator: concat
 // .NET equivalent: Concat
 

@@ -217,6 +217,20 @@ void linq_tests()
                          | average([](int i) { return i; }));
     }
 
+    // cast
+    {
+        const std::vector<int> vi = { 42, 23, 66 };
+        const std::vector<double> vd = { 42.0, 23.0, 66.0 };
+
+        using namespace coveo::linq;
+        auto seq_d = from(vi)
+                   | cast<double>();
+        COVEO_ASSERT(detail::equal(std::begin(seq_d), std::end(seq_d),
+                                   std::begin(vd), std::end(vd)));
+        COVEO_ASSERT(seq_d.has_fast_size());
+        COVEO_ASSERT(seq_d.size() == vd.size());
+    }
+
     // concat
     {
         const std::vector<int> a = { 42, 23 };

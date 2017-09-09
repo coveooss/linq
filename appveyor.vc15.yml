@@ -1,0 +1,11 @@
+image: Visual Studio 2017
+platform:
+  - x64
+  - Win32
+configuration:
+  - Debug
+  - Release
+build:
+  project: vc15.sln
+test_script:
+  - .\out\test.exe

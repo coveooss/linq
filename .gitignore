@@ -34,6 +34,7 @@
 *.VC.db
 *.opendb
 bin/
+out/
 obj/
 
 # CMake files

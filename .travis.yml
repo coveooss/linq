@@ -1,7 +1,9 @@
 language: cpp
 matrix:
   include:
-  - compiler: gcc
+  - compiler: gcc5
+    dist: trusty
+    sudo: false
     addons:
       apt:
         sources:
@@ -9,15 +11,62 @@ matrix:
         packages:
         - g++-5
     env: COMPILER=g++-5
-#  - compiler: clang
-#    addons:
-#      apt:
-#        sources:
-#        - ubuntu-toolchain-r-test
-#        - llvm-toolchain-precise-3.8
-#        packages:
-#        - clang-3.8
-#    env: COMPILER=clang++-3.8
+  - compiler: gcc6
+    dist: trusty
+    sudo: false
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        - g++-6
+    env: COMPILER=g++-6
+  - compiler: clang36
+    dist: trusty
+    sudo: false
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        - llvm-toolchain-trusty-3.6
+        packages:
+        - clang-3.6
+    env: COMPILER=clang++-3.6
+  - compiler: clang38
+    dist: trusty
+    sudo: false
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        - llvm-toolchain-trusty-3.8
+        packages:
+        - clang-3.8
+    env: COMPILER=clang++-3.8
+  - compiler: clang39
+    dist: trusty
+    sudo: false
+    env: COMPILER=clang++
+  - compiler: clang40
+    dist: trusty
+    sudo: false
+    addons:
+      apt:
+        sources:
+        - llvm-toolchain-trusty-4.0
+        packages:
+        - clang-4.0
+    env: COMPILER=clang++-4.0
+  - compiler: clang50
+    dist: trusty
+    sudo: false
+    addons:
+      apt:
+        sources:
+        - llvm-toolchain-trusty-5.0
+        packages:
+        - clang-5.0
+    env: COMPILER=clang++-5.0
 script:
 - $COMPILER --version
 - make CXX=$COMPILER

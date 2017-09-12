@@ -49,30 +49,30 @@ template<typename T> struct is_enumerable<coveo::enumerable<T>> : std::true_type
 template<typename> struct is_reference_wrapper : std::false_type { };
 template<typename T> struct is_reference_wrapper<std::reference_wrapper<T>> : std::true_type { };
 
-// Type trait that can be used to know if std::begin(const T) is valid.
-// Detects both std::begin specialization and begin const methods.
+// Type trait that can be used to know if std::begin(T) is valid.
+// Detects both std::begin specializations and begin methods.
 template<typename T>
 class has_begin
 {
     static_assert(sizeof(std::int_least8_t) != sizeof(std::int_least32_t),
                   "has_begin only works if int_least8_t has a different size than int_least32_t");
 
-    template<typename C> static std::int_least8_t  test(decltype(std::begin(std::declval<const C>()))*);    // Will be selected if std::begin(const C) works
-    template<typename C> static std::int_least32_t test(...);                                               // Will be selected otherwise
+    template<typename C> static std::int_least8_t  test(decltype(std::begin(std::declval<C>()))*);  // Will be selected if std::begin(C) works
+    template<typename C> static std::int_least32_t test(...);                                       // Will be selected otherwise
 public:
     static const bool value = sizeof(test<T>(nullptr)) == sizeof(std::int_least8_t);
 };
 
-// Type trait that can be used to know if std::end(const T) is valid.
-// Detects both std::end specialization and begin const methods.
+// Type trait that can be used to know if std::end(T) is valid.
+// Detects both std::end specializations and end methods.
 template<typename T>
 class has_end
 {
     static_assert(sizeof(std::int_least8_t) != sizeof(std::int_least32_t),
                   "has_end only works if int_least8_t has a different size than int_least32_t");
 
-    template<typename C> static std::int_least8_t  test(decltype(std::end(std::declval<const C>()))*);      // Will be selected if std::end(const C) works
-    template<typename C> static std::int_least32_t test(...);                                               // Will be selected otherwise
+    template<typename C> static std::int_least8_t  test(decltype(std::end(std::declval<C>()))*);    // Will be selected if std::end(C) works
+    template<typename C> static std::int_least32_t test(...);                                       // Will be selected otherwise
 public:
     static const bool value = sizeof(test<T>(nullptr)) == sizeof(std::int_least8_t);
 };
@@ -91,7 +91,7 @@ public:
     static const bool value = sizeof(test<T>(nullptr)) == sizeof(std::int_least8_t);
 };
 
-// Copies content of upopt_ if possible. Used by enumerable::const_iterator
+// Copies content of upopt_ if possible. Used by enumerable's iterators.
 void get_copied_upopt(...);
 template<typename T>
 auto get_copied_upopt(const std::unique_ptr<T>& copied_upopt)
@@ -151,7 +151,7 @@ auto get_ref_from_iterator(It&& it, std::unique_ptr<T>& upopt) -> typename std::
     return upopt.get();
 }
 
-// Returns a size delegate for a sequence if iterators can provide that information quickly
+// Returns a size delegate for a sequence if iterators can provide that information quickly.
 void get_size_delegate_for_iterators(...);
 template<typename It>
 auto get_size_delegate_for_iterators(const It& beg, const It& end) -> typename std::enable_if<std::is_base_of<std::random_access_iterator_tag,

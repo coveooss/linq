@@ -16,18 +16,22 @@
 
 namespace coveo {
 
-// Wrapper for an immutable, multipass, forward-only sequence of const elements.
-// Uses a delegate to fetch the elements to return. The sequence supports iteration
-// via the standard begin/cbegin and end/cend methods.
+// Wrapper for aa multipass, forward-only sequence of elements.
+// Uses a delegate to fetch the elements to return. The sequence
+// supports iteration via the standard begin/cbegin and end/cend methods.
 template<typename T>
 class enumerable
 {
 public:
     // Types for elements in the sequence.
-    typedef typename detail::seq_element_traits<T>::const_value_type    value_type;     // Type of element in the sequence.
-    typedef typename detail::seq_element_traits<T>::raw_value_type      raw_value_type; // Raw /value_type/, not cv-qualified.
-    typedef typename detail::seq_element_traits<T>::const_pointer       pointer;        // Pointer to a sequence element.
-    typedef typename detail::seq_element_traits<T>::const_reference     reference;      // Reference to a sequence element.
+    typedef typename detail::seq_element_traits<T>::value_type          value_type;         // Type of element in the sequence.
+    typedef typename detail::seq_element_traits<T>::raw_value_type      raw_value_type;     // Raw /value_type/, not cv-qualified.
+    typedef typename detail::seq_element_traits<T>::pointer             pointer;            // Pointer to a sequence element.
+    typedef typename detail::seq_element_traits<T>::reference           reference;          // Reference to a sequence element.
+
+    typedef typename detail::seq_element_traits<T>::const_value_type    const_value_type;   // Same as above for const_iterator
+    typedef typename detail::seq_element_traits<T>::const_pointer       const_pointer;
+    typedef typename detail::seq_element_traits<T>::const_reference;    const_reference;
 
     // Delegate that returns next element in sequence, or nullptr when done.
     // Receives a stable unique_ptr<T> each time that can be used to store next value.
@@ -36,7 +40,8 @@ public:
     // Delegate that returns number of elements in sequence.
     typedef std::function<std::size_t()>                                size_delegate;
 
-    // Forward declaration of iterator class.
+    // Forward declaration of iterator classes.
+    class iterator;
     class const_iterator;
 
 private:
@@ -69,20 +74,26 @@ public:
         : zero_(), size_() { *this = for_container(std::forward<C>(cnt)); }
 
     // Access to beginning or end of sequence
+    iterator begin() {
+        return iterator(*this, false);
+    }
     const_iterator begin() const {
+        return cbegin();
+    }
+    const_iterator cbegin() const {
         return const_iterator(*this, false);
     }
+
+    iterator end() {
+        return iterator(*this, true);
+    }
     const_iterator end() const {
+        return cend();
+    }
+    const_iterator cend() const {
         return const_iterator(*this, true);
     }
     
-    const_iterator cbegin() const {
-        return begin();
-    }
-    const_iterator cend() const {
-        return end();
-    }
-
     // Access to size of sequence
     bool has_fast_size() const {
         // If we have a delegate, size() should be reasonably fast
@@ -96,7 +107,7 @@ public:
 
 public:
     // Iterator for the elements in an enumerable's sequence.
-    class const_iterator
+    class iterator
     {
     public:
         // Standard iterator typedefs
@@ -115,7 +126,7 @@ public:
         size_t pos_;                        // Position in sequence, to compare iterators
 
         // Fetches value of pcur_ when copying/assigning from another iterator.
-        static pointer get_copied_pcur(const std::unique_ptr<T>& our_upopt,
+        static pointer get_copied_pcur(std::unique_ptr<T>& our_upopt,
                                        const std::unique_ptr<T>& copied_upopt,
                                        pointer copied_pcur)
         {
@@ -143,19 +154,19 @@ public:
     
     public:
         // Default constructor
-        const_iterator()
+        iterator()
             : pparent_(nullptr), next_(), upopt_(), pcur_(nullptr), has_cur_(true), pos_(0) { }
 
         // Constructor from enumerable
-        const_iterator(const enumerable<T>& parent, const bool is_end)
+        iterator(enumerable<T>& parent, bool is_end)
             : pparent_(&parent), next_(!is_end ? parent.zero_ : next_delegate()),
               upopt_(), pcur_(nullptr), has_cur_(is_end), pos_(0) { }
 
         // Copy/move semantics
-        const_iterator(const const_iterator& obj)
-            : pparent_(obj.pparent_), next_(obj.next_), upopt_(detail::get_copied_upopt<T>(obj.upopt_)),
+        iterator(const iterator& obj)
+            : pparent_(obj.pparent_), next_(obj.next_), upopt_(detail::get_copied_upopt(obj.upopt_)),
               pcur_(get_copied_pcur(upopt_, obj.upopt_, obj.pcur_)), has_cur_(obj.has_cur_), pos_(obj.pos_) { }
-        const_iterator(const_iterator&& obj)
+        iterator(iterator&& obj)
             : pparent_(obj.pparent_), next_(std::move(obj.next_)), upopt_(std::move(obj.upopt_)),
               pcur_(obj.pcur_), has_cur_(obj.has_cur_), pos_(obj.pos_)
         {
@@ -165,18 +176,18 @@ public:
             obj.pos_ = 0;
         }
 
-        const_iterator& operator=(const const_iterator& obj) {
+        iterator& operator=(const iterator& obj) {
             if (this != &obj) {
                 pparent_ = obj.pparent_;
                 next_ = obj.next_;
-                upopt_ = detail::get_copied_upopt<T>(obj.upopt_);
+                upopt_ = detail::get_copied_upopt(obj.upopt_);
                 pcur_ = get_copied_pcur(upopt_, obj.upopt_, obj.pcur_);
                 has_cur_ = obj.has_cur_;
                 pos_ = obj.pos_;
             }
             return *this;
         }
-        const_iterator& operator=(const_iterator&& obj) {
+        iterator& operator=(iterator&& obj) {
             pparent_ = obj.pparent_;
             next_ = std::move(obj.next_);
             upopt_ = std::move(obj.upopt_);
@@ -201,7 +212,7 @@ public:
         }
         
         // Move to next element (pre/post versions)
-        const_iterator& operator++() {
+        iterator& operator++() {
             if (has_cur_) {
                 pcur_ = nullptr;
                 has_cur_ = false;
@@ -209,6 +220,76 @@ public:
                 next_(upopt_);
             }
             ++pos_;
+            return *this;
+        }
+        iterator operator++(int) {
+            iterator it(*this);
+            ++*this;
+            return it;
+        }
+        
+        // Iterator comparison
+        friend bool operator==(const iterator& left, const iterator& right) {
+            return left.pparent_ == right.pparent_ &&
+                   (left.get_pcur() == nullptr) == (right.get_pcur() == nullptr) &&
+                   (left.get_pcur() == nullptr || left.pos_ == right.pos_);
+        }
+        friend bool operator!=(const iterator& left, const iterator& right) {
+            return !(left == right);
+        }
+    };
+
+    // Const iterator for the elements in an enumerable's sequence.
+    class iterator
+    {
+    public:
+        // Standard iterator typedefs
+        typedef std::forward_iterator_tag                   iterator_category;
+        typedef typename enumerable<T>::const_value_type    value_type;
+        typedef std::ptrdiff_t                              difference_type;
+        typedef typename enumerable<T>::const_pointer       pointer;
+        typedef typename enumerable<T>::const_reference     reference;
+
+    private:
+        iterator it_;   // Wrapped iterator implementation
+    
+    public:
+        // Default constructor
+        const_iterator()
+            : it_() { }
+
+        // Constructor from enumerable
+        const_iterator(const enumerable<T>& parent, bool is_end)
+            : it_(const_cast<enumerate<T>&>(parent), is_end) { }
+
+        // Copy/move semantics
+        const_iterator(const const_iterator& obj)
+            : it_(obj.it_) { }
+        const_iterator(const_iterator&& obj)
+            : it_(std::move(obj.it_)) { }
+
+        const_iterator& operator=(const const_iterator& obj) {
+            if (this != &obj) {
+                it_ = obj.it_;
+            }
+            return *this;
+        }
+        const_iterator& operator=(const_iterator&& obj) {
+            it_ = std::move(obj.it_);
+            return *this;
+        }
+        
+        // Element access
+        reference operator*() const {
+            return *it_;
+        }
+        pointer operator->() const {
+            return it.operator->();
+        }
+        
+        // Move to next element (pre/post versions)
+        const_iterator& operator++() {
+            ++it_;
             return *this;
         }
         const_iterator operator++(int) {
@@ -219,9 +300,7 @@ public:
         
         // Iterator comparison
         friend bool operator==(const const_iterator& left, const const_iterator& right) {
-            return left.pparent_ == right.pparent_ &&
-                   (left.get_pcur() == nullptr) == (right.get_pcur() == nullptr) &&
-                   (left.get_pcur() == nullptr || left.pos_ == right.pos_);
+            return left.it_ == right.it_;
         }
         friend bool operator!=(const const_iterator& left, const const_iterator& right) {
             return !(left == right);
@@ -252,7 +331,7 @@ public:
     }
 
     // Returns enumerable over sequence of one external element.
-    static enumerable<T> for_one_ref(const T& obj) {
+    static enumerable<T> for_one_ref(reference obj) {
         bool available = true;
         return enumerable<T>([&obj, available](std::unique_ptr<T>&) mutable {
             pointer pobj = nullptr;
@@ -281,7 +360,7 @@ public:
 
     // Returns enumerable over a container, stored externally.
     template<typename C>
-    static enumerable<T> for_container(const C& cnt) {
+    static enumerable<T> for_container(C& cnt) {
         auto it = std::begin(cnt);
         auto end = std::end(cnt);
         return enumerable<T>([it, end](std::unique_ptr<T>& upopt) mutable {
@@ -300,7 +379,7 @@ public:
     template<typename C,
              typename = typename std::enable_if<!std::is_reference<C>::value, void>::type>
     static enumerable<T> for_container(C&& cnt) {
-        auto spcnt = std::make_shared<const C>(std::move(cnt));
+        auto spcnt = std::make_shared<C>(std::move(cnt));
         auto it = std::begin(*spcnt);
         auto end = std::end(*spcnt);
         return enumerable<T>([spcnt, it, end](std::unique_ptr<T>& upopt) mutable {
@@ -316,7 +395,7 @@ public:
     }
 
     // Returns enumerable over dynamic array.
-    static enumerable<T> for_array(pointer const parr, const size_t siz) {
+    static enumerable<T> for_array(pointer parr, size_t siz) {
         // This works even if siz is 0 or if parr is nullptr.
         return for_range(parr, parr + siz);
     }
@@ -325,7 +404,7 @@ public:
 // Helper functions corresponding to the helper static methods in enumerable.
 
 // Returns enumerable for sequence of one element, stored internally (moved if possible).
-template<typename U>
+template<typename U> // #clp TODO continue HERE!
 auto enumerate_one(U&& obj)
     -> enumerable<typename detail::seq_element_traits<typename std::decay<U>::type>::raw_value_type>
 {

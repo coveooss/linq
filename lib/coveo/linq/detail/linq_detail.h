@@ -115,10 +115,10 @@ struct greater {
 template<typename T, typename... Args>
 std::unique_ptr<T> make_unique(Args&&... args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-};
+}
 
 // Helper that reserves space in a container based on the number of elements in a sequence
-// If it's possible to do so quickly (e.g. with random-access iterators or size())
+// if it's possible to do so quickly (e.g. with random-access iterators or size())
 void try_reserve(...);
 template<typename C, typename Seq>
 auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<coveo::detail::is_enumerable<Seq>::value, void>::type
@@ -126,13 +126,13 @@ auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<coveo::detai
     if (seq.has_fast_size()) {
         cnt.reserve(seq.size());
     }
-};
+}
 template<typename C, typename Seq>
 auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<!coveo::detail::is_enumerable<Seq>::value &&
                                                                     coveo::detail::has_size_const_method<Seq>::value, void>::type
 {
     cnt.reserve(seq.size());
-};
+}
 template<typename C, typename Seq>
 auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
                                                                     std::is_base_of<std::random_access_iterator_tag,
@@ -140,7 +140,7 @@ auto try_reserve(C& cnt, const Seq& seq) -> typename std::enable_if<!coveo::deta
                                                                     void>::type
 {
     cnt.reserve(std::distance(std::begin(seq), std::end(seq)));
-};
+}
 template<typename C, typename Seq>
 auto try_reserve(C&, const Seq&) -> typename std::enable_if<!coveo::detail::has_size_const_method<typename std::decay<Seq>::type>::value &&
                                                             !std::is_base_of<std::random_access_iterator_tag,
@@ -148,7 +148,7 @@ auto try_reserve(C&, const Seq&) -> typename std::enable_if<!coveo::detail::has_
                                                             void>::type
 {
     // Can't reserve, no fast way of doing so
-};
+}
 
 // Helper that returns a size_delegate for a sequence if it's possible to quickly calculate
 // its size (e.g. with random-access iterators or size())
@@ -171,7 +171,7 @@ auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<!coveo::de
 {
     std::size_t size = seq.size();
     return [size]() -> std::size_t { return size; };
-};
+}
 template<typename T, typename Seq>
 auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
                                                                       std::is_base_of<std::random_access_iterator_tag,
@@ -180,7 +180,7 @@ auto try_get_size_delegate(const Seq& seq) -> typename std::enable_if<!coveo::de
 {
     std::size_t size = static_cast<std::size_t>(std::distance(std::begin(seq), std::end(seq)));
     return [size]() -> std::size_t { return size; };
-};
+}
 template<typename T, typename Seq>
 auto try_get_size_delegate(const Seq&) -> typename std::enable_if<!coveo::detail::has_size_const_method<Seq>::value &&
                                                                   !std::is_base_of<std::random_access_iterator_tag,
@@ -189,7 +189,7 @@ auto try_get_size_delegate(const Seq&) -> typename std::enable_if<!coveo::detail
 {
     // No way to quickly determine size, don't try
     return nullptr;
-};
+}
 
 // Utility methods to throw LINQ-specific exceptions.
 template<typename = void>
@@ -345,6 +345,14 @@ public:
     class next_impl
     {
     private:
+        // Type of element returned by this next delegate. The elements will be const
+        // if at least one sequence is const.
+        typename std::conditional<std::is_const<typename seq_traits<Seq1>::value_type>::value ||
+                                  std::is_const<typename seq_traits<Seq2>::value_type>::value,
+                                  typename seq_traits<Seq1>::const_value_type,
+                                  typename seq_traits<Seq1>::value_type>::type          enum_type;
+        typedef typename coveo::detail::seq_element_traits<enum_type>::raw_value_type   raw_enum_type;
+
         // Type of iterators for both sequences
         typedef typename seq_traits<Seq1>::iterator_type first_iterator_type;
         typedef typename seq_traits<Seq2>::iterator_type second_iterator_type;
@@ -378,18 +386,18 @@ public:
 
             // Returns next element from one of the sequences or nullptr when done
             auto get_next(first_iterator_type& icur1, second_iterator_type& icur2,
-                          std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
-                -> typename seq_traits<Seq1>::const_pointer
+                          std::unique_ptr<raw_enum_type>& upopt)
+                -> typename coveo::detail::seq_element_traits<enum_type>::pointer
             {
                 // First return all elements from first sequence, then from second sequence.
-                typename seq_traits<Seq1>::const_pointer pobj = nullptr;
+                typename coveo::detail::seq_element_traits<enum_type>::const_pointer pobj = nullptr;
                 if (icur1 != iend1_) {
-                    pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq1>::const_reference,
-                                                                typename seq_traits<Seq1>::const_pointer>(icur1, upopt);
+                    pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq1>::reference,
+                                                                typename seq_traits<Seq1>::pointer>(icur1, upopt);
                     ++icur1;
                 } else if (icur2 != iend2_) {
-                    pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq2>::const_reference,
-                                                                typename seq_traits<Seq2>::const_pointer>(icur2, upopt);
+                    pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq2>::reference,
+                                                                typename seq_traits<Seq2>::pointer>(icur2, upopt);
                     ++icur2;
                 }
                 return pobj;
@@ -406,7 +414,7 @@ public:
             : spinfo_(std::make_shared<concat_info>(std::forward<Seq1>(seq1), std::forward<Seq2>(seq2))),
               icur1_(spinfo_->first_begin()), icur2_(spinfo_->second_begin()) { }
 
-        auto operator()(std::unique_ptr<typename seq_traits<Seq1>::raw_value_type>& upopt)
+        auto operator()(std::unique_ptr<raw_enum_type>& upopt)
             -> decltype(spinfo_->get_next(icur1_, icur2_, upopt))
         {
             return spinfo_->get_next(icur1_, icur2_, upopt);
@@ -435,7 +443,7 @@ public:
 
     template<typename Seq1>
     auto operator()(Seq1&& seq1)
-        -> coveo::enumerable<typename seq_traits<Seq1>::raw_value_type>
+        -> coveo::enumerable<typename next_impl<Seq1>::enum_type>
     {
         // Note: if seq2_ is not a ref, it is moved by the forward below
         // and becomes invalid; this cannot be called twice.
@@ -443,16 +451,16 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        auto siz1 = try_get_size_delegate<typename seq_traits<Seq1>::raw_value_type>(seq1);
-        auto siz2 = try_get_size_delegate<typename seq_traits<Seq2>::raw_value_type>(seq2_);
-        typename coveo::enumerable<typename seq_traits<Seq1>::raw_value_type>::size_delegate siz;
+        auto siz1 = try_get_size_delegate<typename next_impl<Seq1>::enum_type>(seq1);
+        auto siz2 = try_get_size_delegate<typename next_impl<Seq1>::enum_type>(seq2_);
+        typename coveo::enumerable<typename next_impl<Seq1>::enum_type>::size_delegate siz;
         if (siz1 != nullptr && siz2 != nullptr) {
             std::size_t size = siz1() + siz2();
             siz = [size]() -> std::size_t { return size; };
         }
-        return coveo::enumerable<typename seq_traits<Seq1>::raw_value_type>(next_impl<Seq1>(std::forward<Seq1>(seq1),
-                                                                                            std::forward<Seq2>(seq2_)),
-                                                                            siz);
+        return coveo::enumerable<typename next_impl<Seq1>::enum_type>(next_impl<Seq1>(std::forward<Seq1>(seq1),
+                                                                                      std::forward<Seq2>(seq2_)),
+                                                                      siz);
     }
 };
 
@@ -555,11 +563,11 @@ class default_if_empty_impl_0
 public:
     template<typename Seq>
     auto operator()(Seq&& seq)
-        -> coveo::enumerable<typename seq_traits<Seq>::raw_value_type>
+        -> coveo::enumerable<typename seq_traits<Seq>::const_value_type>
     {
-        coveo::enumerable<typename seq_traits<Seq>::raw_value_type> e;
+        coveo::enumerable<typename seq_traits<Seq>::const_value_type> e;
         if (any_impl<>()(seq)) {
-            e = coveo::enumerate_container(seq);
+            e = coveo::enumerate_container(std::forward<Seq>(seq));
         } else {
             e = coveo::enumerate_one(typename seq_traits<Seq>::raw_value_type());
         }
@@ -580,11 +588,11 @@ public:
 
     template<typename Seq>
     auto operator()(Seq&& seq)
-        -> coveo::enumerable<typename seq_traits<Seq>::raw_value_type>
+        -> coveo::enumerable<typename seq_traits<Seq>::const_value_type>
     {
-        coveo::enumerable<typename seq_traits<Seq>::raw_value_type> e;
+        coveo::enumerable<typename seq_traits<Seq>::const_value_type> e;
         if (any_impl<>()(seq)) {
-            e = coveo::enumerate_container(seq);
+            e = coveo::enumerate_container(std::forward<Seq>(seq));
         } else {
             e = coveo::enumerate_one(typename seq_traits<Seq>::raw_value_type(obj_));
         }
@@ -637,12 +645,12 @@ public:
             // Returns next distinct element or nullptr when done
             auto get_next(iterator_type& icur, seen_elements_set& seen,
                           std::unique_ptr<typename seq_traits<Seq>::raw_value_type>& upopt)
-                -> typename seq_traits<Seq>::const_pointer
+                -> typename seq_traits<Seq>::pointer
             {
-                typename seq_traits<Seq>::const_pointer pobj = nullptr;
+                typename seq_traits<Seq>::pointer pobj = nullptr;
                 for (; pobj == nullptr && icur != iend_; ++icur) {
-                    auto pobjtmp = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq>::const_reference,
-                                                                        typename seq_traits<Seq>::const_pointer>(icur, upopt);
+                    auto pobjtmp = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq>::reference,
+                                                                        typename seq_traits<Seq>::pointer>(icur, upopt);
                     if (seen.emplace(*pobjtmp).second) {
                         // Not seen yet, return this element.
                         pobj = pobjtmp;
@@ -691,7 +699,7 @@ public:
 
     template<typename Seq>
     auto operator()(Seq&& seq)
-        -> coveo::enumerable<typename seq_traits<Seq>::raw_value_type>
+        -> coveo::enumerable<typename seq_traits<Seq>::value_type>
     {
         // Note: if pred_ is not a ref, it is moved by the forward below
         // and becomes invalid; this cannot be called twice.
@@ -788,7 +796,7 @@ public:
 
 // Implementation of except operator.
 template<typename Seq2, typename Pred>
-class except_impl
+class except_impl // #clp TODO continue HERE!
 {
 public:
     // Implementation of next delegate that filters out

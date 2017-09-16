@@ -813,7 +813,7 @@ void linq_tests()
         using namespace coveo::linq;
         auto seq = from(v)
                  | order_by([](const std::string& a) { return a.size(); })
-                 | then_by([](const std::string& a) { return a; });
+                 | then_by([](const std::string& a) { return a; }); // #clp TODO validate that this calls the proper constructor of order_by_impl
         COVEO_ASSERT(detail::equal(std::begin(seq), std::end(seq),
                                    std::begin(expected), std::end(expected)));
         COVEO_ASSERT(seq.has_fast_size());

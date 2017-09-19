@@ -79,7 +79,7 @@ auto from_int_range(IntT first, std::size_t count)
 //
 template<typename T>
 auto from_repeated(const T& value, std::size_t count)
-    -> coveo::enumeratble<const typename std::decay<T>::type>
+    -> coveo::enumerable<const typename std::decay<T>::type>
 {
     std::vector<typename std::decay<T>::type> vvalues;
     vvalues.reserve(count);

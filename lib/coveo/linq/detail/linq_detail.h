@@ -347,10 +347,10 @@ public:
     public:
         // Type of element returned by this next delegate. The elements will be const
         // if at least one sequence is const.
-        typename std::conditional<std::is_const<typename seq_traits<Seq1>::value_type>::value ||
-                                  std::is_const<typename seq_traits<Seq2>::value_type>::value,
-                                  typename seq_traits<Seq1>::const_value_type,
-                                  typename seq_traits<Seq1>::value_type>::type          enum_type;
+        typedef typename std::conditional<std::is_const<typename seq_traits<Seq1>::value_type>::value ||
+                                          std::is_const<typename seq_traits<Seq2>::value_type>::value,
+                                          typename seq_traits<Seq1>::const_value_type,
+                                          typename seq_traits<Seq1>::value_type>::type  enum_type;
         typedef typename coveo::detail::seq_element_traits<enum_type>::raw_value_type   raw_enum_type;
 
     private:
@@ -2817,10 +2817,10 @@ public:
     public:
         // Type of element returned by this next delegate. The elements will be const
         // if at least one sequence is const.
-        typename std::conditional<std::is_const<typename seq_traits<Seq1>::value_type>::value ||
-                                  std::is_const<typename seq_traits<Seq2>::value_type>::value,
-                                  typename seq_traits<Seq1>::const_value_type,
-                                  typename seq_traits<Seq1>::value_type>::type          enum_type;
+        typedef typename std::conditional<std::is_const<typename seq_traits<Seq1>::value_type>::value ||
+                                          std::is_const<typename seq_traits<Seq2>::value_type>::value,
+                                          typename seq_traits<Seq1>::const_value_type,
+                                          typename seq_traits<Seq1>::value_type>::type  enum_type;
         typedef typename coveo::detail::seq_element_traits<enum_type>::raw_value_type   raw_enum_type;
 
     private:

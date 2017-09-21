@@ -32,9 +32,9 @@ namespace detail {
 // that infers the sequence's value_type from the return value of its iterators.
 // Also provides the type of iterator used by the sequence.
 template<typename Seq>
-struct seq_traits : public coveo::detail::seq_element_traits<decltype(*std::begin(std::declval<Seq>()))>
+struct seq_traits : public coveo::detail::seq_element_traits<decltype(*std::begin(std::declval<Seq&>()))>
 {
-    typedef typename std::decay<decltype(std::begin(std::declval<Seq>()))>::type iterator_type;  // Type of iterator used by the sequence
+    typedef typename std::decay<decltype(std::begin(std::declval<Seq&>()))>::type iterator_type;    // Type of iterator used by the sequence
 };
 template<typename Seq> struct seq_traits<Seq&> : seq_traits<Seq> { };
 template<typename Seq> struct seq_traits<Seq&&> : seq_traits<Seq> { };
@@ -2035,12 +2035,6 @@ public:
 template<typename Cmp>
 class order_by_impl
 {
-    // Type trait used to identify impls with sequences, to differenciate them from
-    // the actual sequences we'll be receiving.
-    template<typename> struct is_order_by_impl_with_seq : std::false_type { };
-    template<typename _Seq, typename _Cmp>
-    struct is_order_by_impl_with_seq<order_by_impl_with_seq<_Seq, _Cmp>> : std::true_type { };
-
 private:
     std::unique_ptr<Cmp> upcmp_;    // Comparator used to order a sequence.
 

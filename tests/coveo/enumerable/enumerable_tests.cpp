@@ -109,6 +109,8 @@ void enumerable_tests()
         std::vector<int> vempty;
         auto empty_seq = coveo::enumerable<int>::empty();
         detail::validate_sequence(empty_seq, vempty, true);
+        auto empty_cseq = empty_seq.as_const();
+        detail::validate_sequence(empty_cseq, vempty, true);
     }
     {
         const std::vector<int> vempty;
@@ -128,6 +130,8 @@ void enumerable_tests()
             }
         });
         detail::validate_sequence(seq_i, vi, false);
+        auto seq_ci = seq_i.as_const();
+        detail::validate_sequence(seq_ci, vi, false);
     }
     {
         const std::vector<int> vi = { 42 };
@@ -147,6 +151,8 @@ void enumerable_tests()
         std::vector<int> vone = { 42 };
         auto seq_one = coveo::enumerable<int>::for_one(42);
         detail::validate_sequence(seq_one, vone, true);
+        auto seq_cone = seq_one.as_const();
+        detail::validate_sequence(seq_cone, vone, true);
     }
     {
         std::vector<int> vone = { 42 };
@@ -171,6 +177,8 @@ void enumerable_tests()
         std::vector<int> vone = { 23 };
         auto seq_one_ref = coveo::enumerable<int>::for_one_ref(hangar);
         detail::validate_sequence(seq_one_ref, vone, true);
+        auto seq_cone_ref = seq_one_ref.as_const();
+        detail::validate_sequence(seq_cone_ref, vone, true);
     }
     {
         int hangar = 23;
@@ -197,6 +205,8 @@ void enumerable_tests()
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_range = coveo::enumerable<int>::for_range(vforseq.begin(), vforseq.end());
         detail::validate_sequence(seq_range, vexpected, true);
+        auto seq_crange = seq_range.as_const();
+        detail::validate_sequence(seq_crange, vexpected, true);
     }
     {
         std::vector<int> vforseq = { 42, 23, 66 };
@@ -223,6 +233,8 @@ void enumerable_tests()
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt = coveo::enumerable<int>(vcnt);
         detail::validate_sequence(seq_cnt, vexpected, true);
+        auto seq_ccnt = seq_cnt.as_const();
+        detail::validate_sequence(seq_ccnt, vexpected, true);
     }
     {
         std::vector<int> vcnt = { 42, 23, 66 };
@@ -260,6 +272,8 @@ void enumerable_tests()
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt_mv = coveo::enumerable<int>(std::vector<int> { 42, 23, 66 });
         detail::validate_sequence(seq_cnt_mv, vexpected, true);
+        auto seq_ccnt_mv = seq_cnt_mv.as_const();
+        detail::validate_sequence(seq_ccnt_mv, vexpected, true);
     }
     {
         std::vector<int> vexpected = { 42, 23, 66 };
@@ -281,6 +295,11 @@ void enumerable_tests()
         auto seq_cnt_mv = coveo::enumerable<const int>::for_container(std::vector<int> { 42, 23, 66 });
         detail::validate_sequence(seq_cnt_mv, vexpected, true);
     }
+    {
+        const std::vector<int> vexpected = { 42, 23, 66 };
+        auto seq_cnt_mv = coveo::enumerable<const int>::for_container(std::vector<int> { 42, 23, 66 });
+        detail::validate_sequence(seq_cnt_mv, vexpected, true);
+    }
 
     // sequence in array
     {
@@ -289,6 +308,8 @@ void enumerable_tests()
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_arr = coveo::enumerable<int>::for_array(arr, arr_size);
         detail::validate_sequence(seq_arr, vexpected, true);
+        auto seq_carr = seq_arr.as_const();
+        detail::validate_sequence(seq_carr, vexpected, true);
     }
     {
         int arr[] = { 42, 23, 66 };
@@ -327,6 +348,8 @@ void enumerable_tests()
         std::list<detail::no_copy> lexpected;
         lexpected.emplace_back(42);
         detail::validate_sequence(seq, lexpected, false);
+        auto cseq = seq.as_const();
+        detail::validate_sequence(cseq, lexpected, false);
     }
     {
         const detail::no_copy an_obj(42);
@@ -353,6 +376,8 @@ void enumerable_tests()
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt = coveo::enumerate_container(vcnt);
         detail::validate_sequence(seq_cnt, vexpected, true);
+        auto seq_ccnt = seq_cnt.as_const();
+        detail::validate_sequence(seq_ccnt, vexpected, true);
     }
 
     // non-const to const

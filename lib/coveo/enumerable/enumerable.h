@@ -18,7 +18,7 @@ namespace coveo {
 
 // Wrapper for a multipass, forward-only sequence of elements.
 // Uses a delegate to fetch the elements to return. The sequence
-// supports iteration via the standard begin/cbegin and end/cend methods.
+// supports iteration via the standard begin/end methods.
 template<typename T>
 class enumerable
 {
@@ -32,10 +32,6 @@ public:
     typedef typename detail::seq_element_traits<T>::pointer             pointer;            // Pointer to a sequence element.
     typedef typename detail::seq_element_traits<T>::reference           reference;          // Reference to a sequence element.
 
-    typedef typename detail::seq_element_traits<T>::const_value_type    const_value_type;   // Same as above for const_iterator
-    typedef typename detail::seq_element_traits<T>::const_pointer       const_pointer;
-    typedef typename detail::seq_element_traits<T>::const_reference     const_reference;
-
     // Delegate that returns next element in sequence, or nullptr when done.
     // Receives a stable unique_ptr<raw_value_type> each time that can be used to store next value.
     typedef std::function<pointer(std::unique_ptr<raw_value_type>&)>    next_delegate;
@@ -43,9 +39,8 @@ public:
     // Delegate that returns number of elements in sequence.
     typedef std::function<std::size_t()>                                size_delegate;
 
-    // Forward declaration of iterator classes.
+    // Forward declaration of iterator class.
     class iterator;
-    class const_iterator;
 
 private:
     next_delegate zero_;    // Next delegate which we will clone to iterate sequence.
@@ -107,26 +102,13 @@ public:
     }
 
     // Access to beginning or end of sequence
-    iterator begin() {
+    iterator begin() const {
         return iterator(*this, false);
     }
-    const_iterator begin() const {
-        return cbegin();
-    }
-    const_iterator cbegin() const {
-        return const_iterator(*this, false);
-    }
-
-    iterator end() {
+    iterator end() const {
         return iterator(*this, true);
     }
-    const_iterator end() const {
-        return cend();
-    }
-    const_iterator cend() const {
-        return const_iterator(*this, true);
-    }
-    
+
     // Access to size of sequence
     bool has_fast_size() const {
         // If we have a delegate, size() should be reasonably fast
@@ -135,7 +117,12 @@ public:
     std::size_t size() const {
         // If we have a delegate, use it, otherwise use distance.
         return size_ != nullptr ? size_()
-                                : static_cast<std::size_t>(std::distance(cbegin(), cend()));
+                                : static_cast<std::size_t>(std::distance(begin(), end()));
+    }
+
+    // Returns const version of this enumerable
+    auto as_const() const -> enumerable<typename std::add_const<T>::type> {
+        return enumerable<typename std::add_const<T>::type>(*this);
     }
 
 public:
@@ -192,7 +179,7 @@ public:
             : pparent_(nullptr), next_(), upopt_(), pcur_(nullptr), has_cur_(true), pos_(0) { }
 
         // Constructor from enumerable
-        iterator(enumerable<T>& parent, bool is_end)
+        iterator(const enumerable<T>& parent, bool is_end)
             : pparent_(&parent), next_(!is_end ? parent.zero_ : next_delegate()),
               upopt_(), pcur_(nullptr), has_cur_(is_end), pos_(0) { }
 
@@ -269,64 +256,6 @@ public:
                    (left.get_pcur() == nullptr || left.pos_ == right.pos_);
         }
         friend bool operator!=(const iterator& left, const iterator& right) {
-            return !(left == right);
-        }
-    };
-
-    // Const iterator for the elements in an enumerable's sequence.
-    class const_iterator
-    {
-    public:
-        // Standard iterator typedefs, plus a few
-        typedef std::forward_iterator_tag                   iterator_category;
-        typedef typename enumerable<T>::const_value_type    value_type;
-        typedef typename enumerable<T>::raw_value_type      raw_value_type;     // Non-standard
-        typedef std::ptrdiff_t                              difference_type;
-        typedef typename enumerable<T>::const_pointer       pointer;
-        typedef typename enumerable<T>::const_reference     reference;
-
-    private:
-        iterator it_;   // Wrapped iterator implementation
-    
-    public:
-        // Default constructor
-        const_iterator()
-            : it_() { }
-
-        // Constructor from enumerable
-        const_iterator(const enumerable<T>& parent, bool is_end)
-            : it_(const_cast<enumerable<T>&>(parent), is_end) { }
-
-        // Constructors from non-const iterator
-        const_iterator(const iterator& it)
-            : it_(it) { }
-        const_iterator(iterator&& it)
-            : it_(std::move(it)) { }
-        
-        // Element access
-        reference operator*() const {
-            return *it_;
-        }
-        pointer operator->() const {
-            return it_.operator->();
-        }
-        
-        // Move to next element (pre/post versions)
-        const_iterator& operator++() {
-            ++it_;
-            return *this;
-        }
-        const_iterator operator++(int) {
-            const_iterator it(*this);
-            ++*this;
-            return it;
-        }
-        
-        // Iterator comparison
-        friend bool operator==(const const_iterator& left, const const_iterator& right) {
-            return left.it_ == right.it_;
-        }
-        friend bool operator!=(const const_iterator& left, const const_iterator& right) {
             return !(left == right);
         }
     };

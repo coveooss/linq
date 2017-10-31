@@ -2578,14 +2578,12 @@ public:
 
         // Bean containing info to share among delegates
         struct take_info {
-            Seq seq_;               // Sequence to skip elements from
-            iterator_type ibeg_;    // Iterator pointing at beginning of sequence
+            Seq seq_;               // Sequence to take elements from
             iterator_type iend_;    // Iterator pointing at end of sequence
             Pred pred_;             // Predicate to satisfy to take elements
 
             take_info(Seq&& seq, Pred&& pred)
                 : seq_(std::forward<Seq>(seq)),
-                  ibeg_(std::begin(seq_)),
                   iend_(std::end(seq_)),
                   pred_(std::forward<Pred>(pred)) { }
 
@@ -2598,33 +2596,27 @@ public:
     private:
         take_info_sp spinfo_;       // Pointer to shared info
         iterator_type icur_;        // Iterator pointing at current element
-        iterator_type itake_end_;   // Iterator pointing after last element to take
-        bool init_flag_;            // Whether icur_ and itake_end_ have been initialized
+        std::size_t n_;             // Index of current element
+        bool done_;                 // Whether we're done taking elements
 
     public:
         next_impl(Seq&& seq, Pred&& pred)
             : spinfo_(std::make_shared<take_info>(std::forward<Seq>(seq),
                                                   std::forward<Pred>(pred))),
-              icur_(), itake_end_(), init_flag_(false) { }
+              icur_(std::begin(spinfo_->seq_)), n_(0), done_(false) { }
 
         auto operator()(std::unique_ptr<typename seq_traits<Seq>::raw_value_type>& upopt)
             -> typename seq_traits<Seq>::pointer
         {
-            // Init last point on first call
-            if (!init_flag_) {
-                icur_ = spinfo_->ibeg_;
-                itake_end_ = icur_;
-                std::size_t n = 0;
-                while (itake_end_ != spinfo_->iend_ && spinfo_->pred_(*itake_end_, n++)) {
-                    ++itake_end_;
-                }
-                init_flag_ = true;
-            }
             typename seq_traits<Seq>::pointer pobj = nullptr;
-            if (icur_ != itake_end_) {
-                pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq>::reference,
-                                                            typename seq_traits<Seq>::pointer>(icur_, upopt);
-                ++icur_;
+            if (!done_) {
+                if (icur_ != spinfo_->iend_ && spinfo_->pred_(*icur_, n_++)) {
+                    pobj = coveo::detail::get_ref_from_iterator<typename seq_traits<Seq>::reference,
+                                                                typename seq_traits<Seq>::pointer>(icur_, upopt);
+                    ++icur_;
+                } else {
+                    done_ = true;
+                }
             }
             return pobj;
         }

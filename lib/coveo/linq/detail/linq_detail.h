@@ -2535,7 +2535,7 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        coveo::enumerable<typename seq_traits<Seq>::value_type>::size_delegate siz;
+        typename coveo::enumerable<typename seq_traits<Seq>::value_type>::size_delegate siz;
         if (n_ != static_cast<std::size_t>(-1)) {
             auto seq_siz = try_get_size_delegate<typename seq_traits<Seq>::value_type>(seq);
             if (seq_siz != nullptr) {
@@ -2661,7 +2661,7 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        coveo::enumerable<typename seq_traits<Seq>::value_type>::size_delegate siz;
+        typename coveo::enumerable<typename seq_traits<Seq>::value_type>::size_delegate siz;
         if (n_ != static_cast<std::size_t>(-1)) {
             auto seq_siz = try_get_size_delegate<typename seq_traits<Seq>::value_type>(seq);
             if (seq_siz != nullptr) {

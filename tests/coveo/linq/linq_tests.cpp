@@ -1137,8 +1137,8 @@ void linq_tests()
                                    std::begin(last_two), std::end(last_two)));
         COVEO_ASSERT(detail::equal(std::begin(e_skip_9), std::end(e_skip_9),
                                    std::begin(none), std::end(none)));
-        COVEO_ASSERT(!e_skip_3.has_fast_size());
-        COVEO_ASSERT(!e_skip_9.has_fast_size());
+        COVEO_ASSERT(e_skip_3.has_fast_size());
+        COVEO_ASSERT(e_skip_9.has_fast_size());
         COVEO_ASSERT(e_skip_3.size() == last_two.size());
         COVEO_ASSERT(e_skip_9.size() == none.size());
     }
@@ -1260,8 +1260,8 @@ void linq_tests()
                                    std::begin(first_three), std::end(first_three)));
         COVEO_ASSERT(detail::equal(std::begin(e_take_0), std::end(e_take_0),
                                    std::begin(none), std::end(none)));
-        COVEO_ASSERT(!e_take_3.has_fast_size());
-        COVEO_ASSERT(!e_take_0.has_fast_size());
+        COVEO_ASSERT(e_take_3.has_fast_size());
+        COVEO_ASSERT(e_take_0.has_fast_size());
         COVEO_ASSERT(e_take_3.size() == first_three.size());
         COVEO_ASSERT(e_take_0.size() == none.size());
     }

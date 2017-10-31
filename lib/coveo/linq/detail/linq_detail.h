@@ -2511,13 +2511,15 @@ public:
 
 private:
     Pred pred_;     // Predicate to satisfy to skip.
+    std::size_t n_; // How many items to skip, if known (otherwise -1).
 #ifdef _DEBUG
     bool applied_;  // Tracks operator application.
 #endif
 
 public:
-    explicit skip_impl(Pred&& pred)
-        : pred_(std::forward<Pred>(pred))
+    skip_impl(Pred&& pred, std::size_t n)
+        : pred_(std::forward<Pred>(pred)),
+          n_(n)
 #ifdef _DEBUG
         , applied_(false)
 #endif
@@ -2533,7 +2535,18 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        return next_impl<Seq>(std::forward<Seq>(seq), std::forward<Pred>(pred_));
+        coveo::enumerable<typename seq_traits<Seq>::value_type>::size_delegate siz;
+        if (n_ != static_cast<std::size_t>(-1)) {
+            auto seq_siz = try_get_size_delegate<typename seq_traits<Seq>::value_type>(seq);
+            if (seq_siz != nullptr) {
+                std::size_t seq_size = seq_siz();
+                std::size_t size = seq_size > n_ ? seq_size - n_ : 0;
+                siz = [size]() -> std::size_t { return size; };
+            }
+        }
+        return coveo::enumerable<typename seq_traits<Seq>::value_type>(next_impl<Seq>(std::forward<Seq>(seq),
+                                                                                      std::forward<Pred>(pred_)),
+                                                                       siz);
     }
 };
 
@@ -2624,13 +2637,15 @@ public:
 
 private:
     Pred pred_;     // Predicate to satisfy to skip.
+    std::size_t n_; // How many items to take, if known (otherwise -1).
 #ifdef _DEBUG
     bool applied_;  // Tracks operator application.
 #endif
 
 public:
-    explicit take_impl(Pred&& pred)
-        : pred_(std::forward<Pred>(pred))
+    take_impl(Pred&& pred, std::size_t n)
+        : pred_(std::forward<Pred>(pred)),
+          n_(n)
 #ifdef _DEBUG
         , applied_(false)
 #endif
@@ -2646,7 +2661,17 @@ public:
         assert(!applied_);
         applied_ = true;
 #endif
-        return next_impl<Seq>(std::forward<Seq>(seq), std::forward<Pred>(pred_));
+        coveo::enumerable<typename seq_traits<Seq>::value_type>::size_delegate siz;
+        if (n_ != static_cast<std::size_t>(-1)) {
+            auto seq_siz = try_get_size_delegate<typename seq_traits<Seq>::value_type>(seq);
+            if (seq_siz != nullptr) {
+                std::size_t size = std::min(n_, seq_siz());
+                siz = [size]() -> std::size_t { return size; };
+            }
+        }
+        return coveo::enumerable<typename seq_traits<Seq>::value_type>(next_impl<Seq>(std::forward<Seq>(seq),
+                                                                                      std::forward<Pred>(pred_)),
+                                                                       siz);
     }
 };
 

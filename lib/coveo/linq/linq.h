@@ -965,7 +965,7 @@ template<typename = void>
 auto skip(std::size_t n)
     -> detail::skip_impl<detail::skip_n_pred<>>
 {
-    return detail::skip_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n));
+    return detail::skip_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n), n);
 }
 
 // C++ LINQ operators: skip_while, skip_while_with_index
@@ -979,8 +979,8 @@ template<typename Pred>
 auto skip_while(Pred&& pred)
     -> detail::skip_impl<detail::indexless_selector_proxy<Pred>>
 {
-    return detail::skip_impl<detail::indexless_selector_proxy<Pred>>(
-        detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)));
+    return detail::skip_impl<detail::indexless_selector_proxy<Pred>>(detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)),
+                                                                     static_cast<std::size_t>(-1));
 }
 
 // As above, but the predicate receives the index of the
@@ -989,7 +989,8 @@ template<typename Pred>
 auto skip_while_with_index(Pred&& pred)
     -> detail::skip_impl<Pred>
 {
-    return detail::skip_impl<Pred>(std::forward<Pred>(pred));
+    return detail::skip_impl<Pred>(std::forward<Pred>(pred),
+                                   static_cast<std::size_t>(-1));
 }
 
 // C++ LINQ operator: sum
@@ -1015,7 +1016,7 @@ template<typename = void>
 auto take(std::size_t n)
     -> detail::take_impl<detail::skip_n_pred<>>
 {
-    return detail::take_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n));
+    return detail::take_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n), n);
 }
 
 // C++ LINQ operators: take_while, take_while_with_index
@@ -1029,8 +1030,8 @@ template<typename Pred>
 auto take_while(Pred&& pred)
     -> detail::take_impl<detail::indexless_selector_proxy<Pred>>
 {
-    return detail::take_impl<detail::indexless_selector_proxy<Pred>>(
-        detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)));
+    return detail::take_impl<detail::indexless_selector_proxy<Pred>>(detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)),
+                                                                     static_cast<std::size_t>(-1));
 }
 
 // As above, but the predicate receives the index of the
@@ -1039,7 +1040,8 @@ template<typename Pred>
 auto take_while_with_index(Pred&& pred)
     -> detail::take_impl<Pred>
 {
-    return detail::take_impl<Pred>(std::forward<Pred>(pred));
+    return detail::take_impl<Pred>(std::forward<Pred>(pred),
+                                   static_cast<std::size_t>(-1));
 }
 
 // C++ LINQ operators: to, to_vector, to_associative, to_map

@@ -280,7 +280,9 @@ public:
                 available = false;
             }
             return pobj;
-        }, []() -> std::size_t { return 1; });
+        }, []() -> std::size_t {
+            return 1;
+        });
     }
 
     // Returns enumerable over sequence of one external element.
@@ -293,7 +295,9 @@ public:
                 available = false;
             }
             return pobj;
-        }, []() -> std::size_t { return 1; });
+        }, []() -> std::size_t {
+            return 1;
+        });
     }
 
     // Returns enumerable over sequence bound by two iterators.
@@ -359,9 +363,9 @@ public:
 // Returns enumerable for sequence of one element, stored internally (moved if possible).
 template<typename U>
 auto enumerate_one(U&& obj)
-    -> enumerable<typename detail::seq_element_traits<U>::value_type>
+    -> enumerable<typename detail::seq_element_traits<U>::const_value_type>
 {
-    return enumerable<typename detail::seq_element_traits<U>::value_type>::for_one(std::forward<U>(obj));
+    return enumerable<typename detail::seq_element_traits<U>::const_value_type>::for_one(std::forward<U>(obj));
 }
 
 // Returns enumerable for sequence of one element, stored externally.
@@ -392,9 +396,9 @@ auto enumerate_container(C& cnt)
 template<typename C,
          typename = typename std::enable_if<!std::is_reference<C>::value, void>::type>
 auto enumerate_container(C&& cnt)
-    -> enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<C>()))>::value_type>
+    -> enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<C>()))>::const_value_type>
 {
-    return enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<C>()))>::value_type>::for_container(
+    return enumerable<typename detail::seq_element_traits<decltype(*std::begin(std::declval<C>()))>::const_value_type>::for_container(
         std::move(cnt));
 }
 

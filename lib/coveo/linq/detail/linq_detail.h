@@ -1011,8 +1011,8 @@ public:
         typedef decltype(std::declval<ValueSelector>()(std::declval<typename seq_traits<Seq>::reference>()))    value;
 
         // Vector of values sharing a common key.
-        typedef std::vector<typename std::decay<value>::type>                           value_v;
-        typedef decltype(coveo::enumerate_container(std::declval<const value_v&>()))    values;
+        typedef std::vector<typename std::decay<value>::type>                   value_v;
+        typedef decltype(coveo::enumerate_container(std::declval<value_v&&>())) values;
 
         // Map that stores keys and their corresponding values.
         typedef std::map<typename std::decay<key>::type, value_v, proxy_cmp<Pred>> values_by_key_m;

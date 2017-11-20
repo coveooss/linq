@@ -155,19 +155,13 @@ void enumerable_tests()
         detail::validate_sequence(seq_cone, vone, true);
     }
     {
-        std::vector<int> vone = { 42 };
-        auto seq_one = coveo::enumerate_one(42);
-        detail::validate_sequence(seq_one, vone, true);
-    }
-    {
         const std::vector<int> vone = { 42 };
         auto seq_one = coveo::enumerable<const int>::for_one(42);
         detail::validate_sequence(seq_one, vone, true);
     }
     {
-        const int i = 42;
         const std::vector<int> vone = { 42 };
-        auto seq_one = coveo::enumerate_one(i);
+        auto seq_one = coveo::enumerate_one(42);
         detail::validate_sequence(seq_one, vone, true);
     }
     
@@ -279,11 +273,8 @@ void enumerable_tests()
         std::vector<int> vexpected = { 42, 23, 66 };
         auto seq_cnt_mv = coveo::enumerable<int>::for_container(std::vector<int> { 42, 23, 66 });
         detail::validate_sequence(seq_cnt_mv, vexpected, true);
-    }
-    {
-        std::vector<int> vexpected = { 42, 23, 66 };
-        auto seq_cnt_mv = coveo::enumerate_container(std::vector<int> { 42, 23, 66 });
-        detail::validate_sequence(seq_cnt_mv, vexpected, true);
+        auto seq_ccnt_mv = seq_cnt_mv.as_const();
+        detail::validate_sequence(seq_ccnt_mv, vexpected, true);
     }
     {
         const std::vector<int> vexpected = { 42, 23, 66 };
@@ -297,7 +288,7 @@ void enumerable_tests()
     }
     {
         const std::vector<int> vexpected = { 42, 23, 66 };
-        auto seq_cnt_mv = coveo::enumerable<const int>::for_container(std::vector<int> { 42, 23, 66 });
+        auto seq_cnt_mv = coveo::enumerate_container(std::vector<int> { 42, 23, 66 });
         detail::validate_sequence(seq_cnt_mv, vexpected, true);
     }
 

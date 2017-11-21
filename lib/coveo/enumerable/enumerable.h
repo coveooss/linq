@@ -42,6 +42,10 @@ public:
     // Forward declaration of iterator class.
     class iterator;
 
+    // Even though begin() and end() are already const, some might want
+    // to use const_iterator, to let's create an alias.
+    typedef iterator        const_iterator;
+
 private:
     next_delegate zero_;    // Next delegate which we will clone to iterate sequence.
     size_delegate size_;    // Optional size delegate.
@@ -105,8 +109,15 @@ public:
     iterator begin() const {
         return iterator(*this, false);
     }
+    iterator cbegin() const {
+        return begin();
+    }
+
     iterator end() const {
         return iterator(*this, true);
+    }
+    iterator cend() const {
+        return end();
     }
 
     // Access to size of sequence

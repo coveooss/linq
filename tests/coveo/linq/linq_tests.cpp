@@ -347,13 +347,6 @@ void linq_tests()
         COVEO_ASSERT((from(v) | element_at(1)) == 23);
         COVEO_ASSERT_THROW(from(v) | element_at(3));
     }
-    {
-        std::vector<int> v = { 42, 23, 66 };
-
-        using namespace coveo::linq;
-        (from(v) | element_at(1)) *= 2;
-        COVEO_ASSERT(v[1] == 46);
-    }
 
     // element_at_or_default
     {
@@ -402,16 +395,6 @@ void linq_tests()
                     | first()) == 42);
         COVEO_ASSERT((from(v)
                     | first([](int i) { return i % 2 != 0; })) == 23);
-    }
-    {
-        std::vector<int> v = { 42, 23, 66 };
-        const std::vector<int> expected = { 43, 22, 66 };
-
-        using namespace coveo::linq;
-        (from(v) | first([](int i) { return i % 2 != 0; })) -= 1;
-        (from(v) | first()) += 1;
-        COVEO_ASSERT(detail::equal(std::begin(v), std::end(v),
-                                   std::begin(expected), std::end(expected)));
     }
 
     // first_or_default
@@ -779,16 +762,6 @@ void linq_tests()
         COVEO_ASSERT((from(v)
                     | last([](int i) { return i % 2 != 0; })) == 11);
     }
-    {
-        std::vector<int> v = { 42, 23, 66, 11, 24 };
-        const std::vector<int> expected = { 42, 23, 66, 10, 25 };
-
-        using namespace coveo::linq;
-        (from(v) | last([](int i) { return i % 2 != 0; })) -= 1;
-        (from(v) | last()) += 1;
-        COVEO_ASSERT(detail::equal(std::begin(v), std::end(v),
-                                   std::begin(expected), std::end(expected)));
-    }
 
     // last_or_default
     {
@@ -1076,25 +1049,6 @@ void linq_tests()
         COVEO_ASSERT_THROW(from(no_42_v) | single(equal_to_42));
         COVEO_ASSERT((from(one_42_v) | single(equal_to_42)) == 42);
         COVEO_ASSERT_THROW(from(two_42_v) | single(equal_to_42));
-    }
-    {
-        std::vector<int> v = { 42 };
-        const std::vector<int> expected = { 43 };
-
-        using namespace coveo::linq;
-        (from(v) | single()) += 1;
-        COVEO_ASSERT(detail::equal(std::begin(v), std::end(v),
-                                   std::begin(expected), std::end(expected)));
-    }
-    {
-        std::vector<int> v = { 23, 42, 66 };
-        const std::vector<int> expected = { 23, 84, 66 };
-        auto equal_to_42 = std::bind(std::equal_to<int>(), std::placeholders::_1, 42);
-
-        using namespace coveo::linq;
-        (from(v) | single(equal_to_42)) *= 2;
-        COVEO_ASSERT(detail::equal(std::begin(v), std::end(v),
-                                   std::begin(expected), std::end(expected)));
     }
 
     // single_or_default
@@ -1659,6 +1613,103 @@ void chaining_tests()
         std::cout << std::endl;
     }
 #endif
+}
+
+// Runs tests for possible dangling references
+void dangling_ref_tests()
+{
+    // Some LINQ operators used to return references to sequence elements.
+    // This is not compatible with sequences built around enumerable and
+    // temporaries stored in unique_ptrs though, so this had to be changed.
+
+    struct foo {
+        std::string s_;
+        int i_;
+        foo(const std::string& s, int i)
+            : s_(s), i_(i) { }
+    };
+    const std::vector<foo> vfoo = {{ "Life", 42 }, { "Hangar", 23 }, { "Route", 66 }};
+    const std::vector<foo> vonefoo = {{ "Life", 42 }};
+
+    using namespace coveo::linq;
+
+    // element_at
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | element_at(1);
+        COVEO_ASSERT(v == 23);
+    }
+
+    // first
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | first();
+        COVEO_ASSERT(v == 42);
+    }
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | first([](int i) { return i % 2 != 0; });
+        COVEO_ASSERT(v == 23);
+    }
+
+    // last
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | last();
+        COVEO_ASSERT(v == 66);
+    }
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | last([](int i) { return i % 2 != 0; });
+        COVEO_ASSERT(v == 23);
+    }
+
+    // max
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | max();
+        COVEO_ASSERT(v == 66);
+    }
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | max([](int i) { return i * 2; });
+        COVEO_ASSERT(v == 132);
+    }
+
+    // min
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | min();
+        COVEO_ASSERT(v == 23);
+    }
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | min([](int i) { return i * 2; });
+        COVEO_ASSERT(v == 46);
+    }
+
+    // single
+    {
+        auto v = from(vonefoo)
+               | select([](const foo& f) { return f.i_; })
+               | single();
+        COVEO_ASSERT(v == 42);
+    }
+    {
+        auto v = from(vfoo)
+               | select([](const foo& f) { return f.i_; })
+               | single([](int i) { return i % 2 != 0; });
+        COVEO_ASSERT(v == 23);
+    }
 }
 
 // Runs all benchmarks for coveo::linq operators

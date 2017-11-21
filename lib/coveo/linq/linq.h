@@ -52,7 +52,7 @@ auto from_range(ItBeg&& ibeg, ItEnd&& iend)
 // of integer values. Use like this:
 //
 //   using namespace coveo::linq;
-//   auto result = from_int_range(1, 10)
+//   auto result = from_int_range(1, 10)    // 1, 2, 3...
 //               | linq_operator(...)
 //               | ...;
 //
@@ -73,7 +73,7 @@ auto from_int_range(IntT first, std::size_t count)
 // of repeated values. Use like this:
 //
 //   using namespace coveo::linq;
-//   auto result = from_repeated(std::string("Life"), 7)
+//   auto result = from_repeated(std::string("Life"), 7)    // "Life", "Life", "Life"...
 //               | linq_operator(...)
 //               | ...;
 //

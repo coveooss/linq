@@ -23,12 +23,6 @@ void validate_sequence(const coveo::enumerable<T>& seq, const C& expected, bool 
         COVEO_ASSERT(obj == *eit++);
     }
     COVEO_ASSERT(eit == eend);
-    eit = std::begin(expected);
-    for (auto sit = seq.cbegin(), send = seq.cend(); sit != send; ++sit) {
-        COVEO_ASSERT(eit != eend);
-        COVEO_ASSERT(*sit == *eit++);
-    }
-    COVEO_ASSERT(eit == eend);
     COVEO_ASSERT(seq.has_fast_size() == fast_size);
     COVEO_ASSERT(seq.size() == expected.size());
 }

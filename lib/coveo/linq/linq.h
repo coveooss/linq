@@ -58,12 +58,13 @@ auto from_range(ItBeg&& ibeg, ItEnd&& iend)
 //
 template<typename IntT>
 auto from_int_range(IntT first, std::size_t count)
-    -> decltype(coveo::enumerate_container(std::declval<std::vector<typename std::decay<IntT>::type>&&>()))
+    -> coveo::enumerable<const typename std::decay<IntT>::type>
 {
     std::vector<typename std::decay<IntT>::type> vvalues;
     vvalues.reserve(count);
+    auto value = first;
     for (std::size_t i = 0; i < count; ++i) {
-        vvalues.push_back(first++);
+        vvalues.push_back(value++);
     }
     return coveo::enumerate_container(std::move(vvalues));
 }
@@ -72,13 +73,13 @@ auto from_int_range(IntT first, std::size_t count)
 // of repeated values. Use like this:
 //
 //   using namespace coveo::linq;
-//   auto result = from_repeated("Life", 7)
+//   auto result = from_repeated(std::string("Life"), 7)
 //               | linq_operator(...)
 //               | ...;
 //
 template<typename T>
 auto from_repeated(const T& value, std::size_t count)
-    -> decltype(coveo::enumerate_container(std::declval<std::vector<typename std::decay<T>::type>&&>()))
+    -> coveo::enumerable<const typename std::decay<T>::type>
 {
     std::vector<typename std::decay<T>::type> vvalues;
     vvalues.reserve(count);
@@ -98,8 +99,8 @@ auto from_repeated(const T& value, std::size_t count)
 //               | linq_op_2(...);
 //
 template<typename Seq, typename Op>
-auto operator|(Seq&& seq, Op&& op) -> decltype(op(std::forward<Seq>(seq))) {
-    return op(std::forward<Seq>(seq));
+auto operator|(Seq&& seq, Op&& op) -> decltype(std::forward<Op>(op)(std::forward<Seq>(seq))) {
+    return std::forward<Op>(op)(std::forward<Seq>(seq));
 }
 
 // C++ LINQ operator: aggregate
@@ -964,7 +965,7 @@ template<typename = void>
 auto skip(std::size_t n)
     -> detail::skip_impl<detail::skip_n_pred<>>
 {
-    return detail::skip_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n));
+    return detail::skip_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n), n);
 }
 
 // C++ LINQ operators: skip_while, skip_while_with_index
@@ -978,8 +979,8 @@ template<typename Pred>
 auto skip_while(Pred&& pred)
     -> detail::skip_impl<detail::indexless_selector_proxy<Pred>>
 {
-    return detail::skip_impl<detail::indexless_selector_proxy<Pred>>(
-        detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)));
+    return detail::skip_impl<detail::indexless_selector_proxy<Pred>>(detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)),
+                                                                     static_cast<std::size_t>(-1));
 }
 
 // As above, but the predicate receives the index of the
@@ -988,7 +989,8 @@ template<typename Pred>
 auto skip_while_with_index(Pred&& pred)
     -> detail::skip_impl<Pred>
 {
-    return detail::skip_impl<Pred>(std::forward<Pred>(pred));
+    return detail::skip_impl<Pred>(std::forward<Pred>(pred),
+                                   static_cast<std::size_t>(-1));
 }
 
 // C++ LINQ operator: sum
@@ -1014,7 +1016,7 @@ template<typename = void>
 auto take(std::size_t n)
     -> detail::take_impl<detail::skip_n_pred<>>
 {
-    return detail::take_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n));
+    return detail::take_impl<detail::skip_n_pred<>>(detail::skip_n_pred<>(n), n);
 }
 
 // C++ LINQ operators: take_while, take_while_with_index
@@ -1028,8 +1030,8 @@ template<typename Pred>
 auto take_while(Pred&& pred)
     -> detail::take_impl<detail::indexless_selector_proxy<Pred>>
 {
-    return detail::take_impl<detail::indexless_selector_proxy<Pred>>(
-        detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)));
+    return detail::take_impl<detail::indexless_selector_proxy<Pred>>(detail::indexless_selector_proxy<Pred>(std::forward<Pred>(pred)),
+                                                                     static_cast<std::size_t>(-1));
 }
 
 // As above, but the predicate receives the index of the
@@ -1038,7 +1040,8 @@ template<typename Pred>
 auto take_while_with_index(Pred&& pred)
     -> detail::take_impl<Pred>
 {
-    return detail::take_impl<Pred>(std::forward<Pred>(pred));
+    return detail::take_impl<Pred>(std::forward<Pred>(pred),
+                                   static_cast<std::size_t>(-1));
 }
 
 // C++ LINQ operators: to, to_vector, to_associative, to_map
@@ -1109,7 +1112,7 @@ auto to_map(const KeySelector& key_sel,
 // .NET equivalent: Union
 
 // Operator that returns all elements that are found in either of two sequences,
-// excluding duplicates, Essentially a set union.
+// excluding duplicates. Essentially a set union.
 template<typename Seq2>
 auto union_with(Seq2&& seq2)
     -> detail::union_impl<Seq2, detail::less<>>

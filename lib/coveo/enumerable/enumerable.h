@@ -32,6 +32,10 @@ public:
     typedef typename detail::seq_element_traits<T>::pointer             pointer;            // Pointer to a sequence element.
     typedef typename detail::seq_element_traits<T>::reference           reference;          // Reference to a sequence element.
 
+    typedef typename detail::seq_element_traits<T>::const_value_type    const_value_type;   // Const version of /value_type/.
+    typedef typename detail::seq_element_traits<T>::const_pointer       const_pointer;      // Const version of /pointer/.
+    typedef typename detail::seq_element_traits<T>::const_reference     const_reference;    // Const version of /reference/.
+
     // Delegate that returns next element in sequence, or nullptr when done.
     // Receives a stable unique_ptr<raw_value_type> each time that can be used to store next value.
     typedef std::function<pointer(std::unique_ptr<raw_value_type>&)>    next_delegate;
@@ -39,8 +43,9 @@ public:
     // Delegate that returns number of elements in sequence.
     typedef std::function<std::size_t()>                                size_delegate;
 
-    // Forward declaration of iterator class.
+    // Forward declaration of iterator classes.
     class iterator;
+    class const_iterator;
 
 private:
     next_delegate zero_;    // Next delegate which we will clone to iterate sequence.
@@ -105,8 +110,15 @@ public:
     iterator begin() const {
         return iterator(*this, false);
     }
+    const_iterator cbegin() const {
+        return const_iterator(*this, false);
+    }
+
     iterator end() const {
         return iterator(*this, true);
+    }
+    const_iterator cend() const {
+        return const_iterator(*this, true);
     }
 
     // Access to size of sequence
@@ -256,6 +268,57 @@ public:
                    (left.get_pcur() == nullptr || left.pos_ == right.pos_);
         }
         friend bool operator!=(const iterator& left, const iterator& right) {
+            return !(left == right);
+        }
+    };
+
+    // Iterator for the elements in an enumerable's sequence, but returning const references.
+    class const_iterator
+    {
+    public:
+        // Standard iterator typedefs, plus a few more
+        typedef std::forward_iterator_tag                   iterator_category;
+        typedef typename enumerable<T>::const_value_type    value_type;
+        typedef typename enumerable<T>::raw_value_type      raw_value_type;     // Non-standard
+        typedef std::ptrdiff_t                              difference_type;
+        typedef typename enumerable<T>::const_pointer       pointer;
+        typedef typename enumerable<T>::const_reference     reference;
+
+    private:
+        iterator it_;   // Iterator implementation we're simply wrapping.
+    
+    public:
+        // Default constructor
+        const_iterator() = default;
+
+        // Constructor from enumerable
+        const_iterator(const enumerable<T>& parent, bool is_end)
+            : it_(parent, is_end) { }
+        
+        // Element access
+        reference operator*() const {
+            return *it_;
+        }
+        pointer operator->() const {
+            return it_.operator->();
+        }
+        
+        // Move to next element (pre/post versions)
+        const_iterator& operator++() {
+            ++it_;
+            return *this;
+        }
+        const_iterator operator++(int) {
+            const_iterator it(*this);
+            ++*this;
+            return it;
+        }
+        
+        // Iterator comparison
+        friend bool operator==(const const_iterator& left, const const_iterator& right) {
+            return left.it_ == right.it_;
+        }
+        friend bool operator!=(const const_iterator& left, const const_iterator& right) {
             return !(left == right);
         }
     };

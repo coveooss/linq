@@ -10,6 +10,7 @@ namespace linq {
 void linq_tests();
 void chaining_tests();
 void dangling_ref_tests();
+void bugs_tests();
 
 void linq_benchmarks();
 

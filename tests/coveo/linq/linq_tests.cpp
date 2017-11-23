@@ -1712,6 +1712,23 @@ void dangling_ref_tests()
     }
 }
 
+// Runs tests for specific bugs
+void bugs_tests()
+{
+    using namespace coveo::linq;
+
+    // sequence_equal used not to work with the product of order_by
+    {
+        const std::vector<int> v = { 42, 23, 66 };
+        auto e1 = from(v)
+                | order_by([](int i) { return i; });
+        auto e2 = from(v)
+                | order_by([](int i) { return i; });
+        COVEO_ASSERT(from(e1)
+                   | sequence_equal(e2));
+    }
+}
+
 // Runs all benchmarks for coveo::linq operators
 void linq_benchmarks()
 {

@@ -1967,13 +1967,13 @@ class order_by_impl_with_seq
     template<typename> friend class order_by_impl;
 
 private:
-    Seq seq_;                                                               // Sequence we're ordering.
-    std::unique_ptr<Cmp> upcmp_;                                            // Comparator used to order a sequence.
-    coveo::enumerable<typename seq_traits<Seq>::const_value_type> enum_;    // Enumerator of ordered elements.
-    bool init_flag_;                                                        // Whether enum_ and size_ have been initialized.
+    Seq seq_;                                                                       // Sequence we're ordering.
+    std::unique_ptr<Cmp> upcmp_;                                                    // Comparator used to order a sequence.
+    mutable coveo::enumerable<typename seq_traits<Seq>::const_value_type> enum_;    // Enumerator of ordered elements.
+    mutable bool init_flag_;                                                        // Whether enum_ and size_ have been initialized.
 
     // Called to initialize enum_ and size_ before using them.
-    void init() {
+    void init() const {
         std::vector<typename seq_traits<Seq>::raw_value_type> ordered;
         try_reserve(ordered, seq_);
         ordered.insert(ordered.end(), std::begin(seq_), std::end(seq_));
@@ -1988,8 +1988,9 @@ private:
     }
 
 public:
-    // Type of iterator used for the ordered sequence.
-    typedef typename coveo::enumerable<typename seq_traits<Seq>::const_value_type>::iterator iterator;
+    // Type of iterators used for the ordered sequence.
+    typedef typename coveo::enumerable<typename seq_traits<Seq>::const_value_type>::iterator        iterator;
+    typedef typename coveo::enumerable<typename seq_traits<Seq>::const_value_type>::const_iterator  const_iterator;
 
     // Constructor called by the impl without sequence.
     order_by_impl_with_seq(Seq&& seq, std::unique_ptr<Cmp>&& upcmp)
@@ -2002,13 +2003,13 @@ public:
     order_by_impl_with_seq& operator=(order_by_impl_with_seq&&) = default;
 
     // Support for ordered sequence.
-    iterator begin() {
+    iterator begin() const {
         if (!init_flag_) {
             init();
         }
         return enum_.begin();
     }
-    iterator end() {
+    iterator end() const {
         if (!init_flag_) {
             init();
         }
@@ -2016,13 +2017,13 @@ public:
     }
 
     // Support for sequence size (a bit like the enumerable API)
-    bool has_fast_size() {
+    bool has_fast_size() const {
         if (!init_flag_) {
             init();
         }
         return enum_.has_fast_size();
     }
-    std::size_t size() {
+    std::size_t size() const {
         if (!init_flag_) {
             init();
         }

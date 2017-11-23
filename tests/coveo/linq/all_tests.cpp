@@ -20,6 +20,7 @@ void all_tests()
     linq_tests();
     chaining_tests();
     dangling_ref_tests();
+    bugs_tests();
 }
 
 // Runs all benchmarks for coveo::enumerable and coveo::linq
